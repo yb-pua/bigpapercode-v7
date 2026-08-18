@@ -1,0 +1,11 @@
+metric,value
+p01_sigma_entropy_bits_per_byte,7.07585475
+p01_sigma_entropy_total_bits,1804.34296088
+p02_rereg_sigma_diff_bytes,220
+p02_rereg_sigma_diff_ratio,0.86274510
+p02_rereg_key_stable,1
+p03_w_entropy_bits,74.35859377
+p03_bruteforce_steps_log2,74.35859377
+p04_w_plaintext_in_offset,0
+p04_bio_key_in_offset,0
+p04_biometric_key_derivation,0

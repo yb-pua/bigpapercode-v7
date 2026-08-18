@@ -1,0 +1,4 @@
+scheme,failure_point,session_break_range,recovery_time
+st_ticket_sm9,relay_killed,50,16598.06532500
+openvpn,gateway_killed,-1,-1.00000000
+#meta {"seed": 20260817, "openvpn_dataplane": "simulated"}

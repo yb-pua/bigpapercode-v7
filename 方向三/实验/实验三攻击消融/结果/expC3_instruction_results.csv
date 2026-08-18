@@ -1,0 +1,14 @@
+case_type,scheme,total,passed,blocked,block_rate
+normal,ours,300,300,0,0.00000000
+tampered,ours,80,0,80,1.00000000
+priv_esc,ours,80,0,80,1.00000000
+replay,ours,40,0,40,1.00000000
+normal,oauth,300,300,0,0.00000000
+tampered,oauth,80,80,0,0.00000000
+priv_esc,oauth,80,80,0,0.00000000
+replay,oauth,40,40,0,0.00000000
+normal,noauth,300,300,0,0.00000000
+tampered,noauth,80,80,0,0.00000000
+priv_esc,noauth,80,80,0,0.00000000
+replay,noauth,40,40,0,0.00000000
+#meta {"seed": 20260817, "n_cmds": 500, "ratios": {"normal": 0.6, "tampered": 0.16, "priv_esc": 0.16, "replay": 0.08}}

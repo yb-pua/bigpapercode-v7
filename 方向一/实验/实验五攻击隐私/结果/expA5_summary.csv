@@ -1,0 +1,8 @@
+metric,value
+attacks_total,9
+attacks_blocked,9
+attacks_success,0
+sigma_entropy_bytes,7.07585475
+rereg_sigma_diff_ratio,0.86274510
+w_entropy_bits,74.35859377
+#meta {"n_attacks": 9, "attacks": "a01_replay_as_req,a02_tampered_st,a03_tampered_tgt,a04_forged_register_sig,a05_unknown_did,a06_forged_tgs_authenticator,a07_impostor_bio_rep,a08_expired_ticket,a09_clock_skew", "rs": "RS(255)", "seed": 20260817}

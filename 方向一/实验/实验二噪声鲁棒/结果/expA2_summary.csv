@@ -1,0 +1,7 @@
+noise_type,n_attempts,krr_overall,sim_mean,krr_worst
+gaussian,600,0.64500000,0.94271390,0.00000000
+brightness,600,0.99000000,0.99285892,0.99000000
+rotation,600,0.98833333,0.98987857,0.98000000
+blur,600,0.83833333,0.88079701,0.45000000
+occlusion,600,0.16666667,0.55837476,0.00000000
+#meta {"seed": 20260817, "noise_types": "gaussian,brightness,rotation,blur,occlusion", "intensity_grid": "{'gaussian': [0.0, 0.02, 0.05, 0.1, 0.2, 0.3], 'brightness': [1.0, 0.9, 0.8, 0.65, 0.5, 0.35], 'rotation': [0.0, 3.0, 6.0, 10.0, 15.0, 20.0], 'blur': [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 'occlusion': [0.0, 0.1, 0.15, 0.2, 0.25, 0.3]}", "cohort_n": 100}

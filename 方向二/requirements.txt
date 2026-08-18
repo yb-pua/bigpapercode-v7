@@ -1,0 +1,4 @@
+# 方向依赖（gmalg 1.1.2 / numpy / cryptography）
+gmalg>=1.1.2
+numpy>=1.26
+cryptography>=42

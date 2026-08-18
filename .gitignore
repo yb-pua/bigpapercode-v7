@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 大文件缓存（不提交）
+cache/
+*.npy
+*.onnx
+*.zip
+*.pkl
+*.pt
+*.pth
+
+# 模型
+模型/
+models/
+
+# 环境
+.venv/
+venv/
+
+# 日志临时文件
+*.log
+
+# 注意：结果 CSV（各实验「结果/」目录）必须提交，不要在此忽略

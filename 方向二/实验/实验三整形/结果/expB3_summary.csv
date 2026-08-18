@@ -1,0 +1,3 @@
+flow_types,schemes,segment_s,rate_mbps,avg_redun_shaped,tls_note
+['period', 'burst', 'request'],['sm9_raw', 'sm9_shaped', 'tls_baseline'],600,1.00000000,0.91911849,TLS1.3 记录层模拟（AES-256-GCM 真实加解密）
+#meta {"seed": 20260817}

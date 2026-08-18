@@ -1,0 +1,17 @@
+metric,value
+cohort_persons,417
+cross_persons,1254
+single_krr,0.28657074
+single_ber_mean,29.38729017
+single_ber_p95,32.00000000
+vote5_krr,0.98609113
+vote5_ber_mean,15.29352518
+vote5_ber_p95,23.00000000
+cross_krr,0.31259968
+cross_ber_mean,29.18181818
+impostor_pairs,5000
+impostor_far,0.00000000
+context_eer,0.02650000
+context_auc,0.98892000
+rs_t,32
+#meta {"seed": 20260817, "binarization": "sign-threshold-0", "stable_threshold": 0.8, "rs": "RS(255,191,t=32)", "cohort_n": 417, "cross_n": 1254, "impostor_n": 5000, "theta_max": 40}

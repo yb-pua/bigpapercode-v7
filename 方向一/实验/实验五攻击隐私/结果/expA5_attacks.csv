@@ -1,0 +1,10 @@
+attack,attempts,successes,blocked_by,status
+a01_replay_as_req,1,0,nonce_registry,blocked
+a02_tampered_st,1,0,sm4_cbc_integrity,blocked
+a03_tampered_tgt,1,0,sm4_cbc_integrity,blocked
+a04_forged_register_sig,1,0,sm9_verify,blocked
+a05_unknown_did,1,0,registration_table,blocked
+a06_forged_tgs_authenticator,1,0,session_key_decrypt,blocked
+a07_impostor_bio_rep,1,0,key_hash,blocked
+a08_expired_ticket,1,0,ticket_validity,blocked
+a09_clock_skew,1,0,timestamp_window,blocked

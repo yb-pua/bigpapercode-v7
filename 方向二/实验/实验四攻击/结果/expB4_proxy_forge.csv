@@ -1,0 +1,7 @@
+test,forge_ok,note
+session_credential_in_scope,1,期望: 验证通过(scope 内)
+authorization_out_of_scope,0,期望: 验证失败(授权书外)
+st_issue_out_of_scope,0,期望: 验证失败(授权书外)
+warrant_scope_tampered,0,期望: 验证失败(warrant 被篡改)
+warrant_forged,0,期望: 验证失败(伪造 warrant)
+#meta {"seed": 20260817, "n_attack": 100}

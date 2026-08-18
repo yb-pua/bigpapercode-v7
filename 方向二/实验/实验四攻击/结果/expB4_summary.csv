@@ -1,0 +1,10 @@
+attack_type,attempts,blocked,block_rate
+replay_st,100,100,1.00000000
+forged_auth,100,100,1.00000000
+did_spoofing,100,100,1.00000000
+malicious_relay_plaintext,1,1,1.00000000
+forged_st,100,100,1.00000000
+tampered_st,100,100,1.00000000
+expired_st,100,100,1.00000000
+TOTAL,601,601,1.00000000
+#meta {"seed": 20260817, "n_attack": 100}

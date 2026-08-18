@@ -1,0 +1,12 @@
+seq,event,state,action
+0,baseline_success,closed,allow
+1,bio_failure,closed,retry
+2,bio_failure,closed,retry
+3,bio_failure,blocked,block
+4,breaker_trip,blocked,tickets_cleared
+5,l1_recover,closed,allow
+6,bio_failure,closed,retry
+7,bio_failure,closed,retry
+8,bio_failure,blocked,block
+9,l2_reregister,closed,allow
+10,after_l2_auth,closed,allow

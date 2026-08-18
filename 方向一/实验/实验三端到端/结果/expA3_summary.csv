@@ -1,0 +1,10 @@
+metric,value
+persons,30
+flow_ok_ratio,0.96666667
+breaker_l1_ok,1
+breaker_l2_ok,1
+after_l2_auth_ok,1
+tee_audit_entries,0
+tee_master_in_log,1
+auth_audit_entries,712
+#meta {"tee": "multiprocessing-simulated", "breaker_threshold": 3, "ticket_ttl_sec": 1800, "service": "svc_a@REALM"}

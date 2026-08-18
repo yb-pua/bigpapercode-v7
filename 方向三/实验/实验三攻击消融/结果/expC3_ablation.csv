@@ -1,0 +1,14 @@
+config,case_type,block_rate,note
+full,normal,0.00000000,n=20
+full,tampered,1.00000000,n=20
+full,priv_esc,1.00000000,n=20
+full,replay,1.00000000,n=20
+no_user_sig,normal,1.00000000,n=20
+no_user_sig,tampered,1.00000000,n=20
+no_user_sig,priv_esc,1.00000000,n=20
+no_user_sig,replay,1.00000000,n=20
+no_st_data,normal,1.00000000,n=20
+no_st_data,tampered,1.00000000,n=20
+no_st_data,priv_esc,1.00000000,n=20
+no_st_data,replay,1.00000000,n=20
+#meta {"seed": 20260817, "n_cmds": 500, "ratios": {"normal": 0.6, "tampered": 0.16, "priv_esc": 0.16, "replay": 0.08}}
