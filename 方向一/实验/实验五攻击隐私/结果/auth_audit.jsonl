@@ -1,0 +1,22 @@
+{"ts": 1787093203.3983154, "ticket_id": null, "action": "register", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787093203.6782315, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "as_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787093203.8515625, "ticket_id": null, "action": "as_req", "result": "rejected_replay", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787093203.8556316, "ticket_id": "5009f9834f33ba124cac47c2794970cc", "action": "tgs_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787093203.8574734, "ticket_id": null, "action": "ap_req", "result": "rejected_st", "principal": "-", "error": "st_decrypt"}
+{"ts": 1787093203.858394, "ticket_id": null, "action": "tgs_req", "result": "rejected_tgt", "principal": "-", "error": "tgt_decrypt"}
+{"ts": 1787093204.3190577, "ticket_id": null, "action": "register", "result": "rejected_sig", "principal": "didsm9:intruder:32f371a2478d8d0fc5db1e4f1719067a55fb6a1229896c6cb7a3b431857e0915"}
+{"ts": 1787093204.4558547, "ticket_id": null, "action": "as_req", "result": "rejected_unknown", "principal": "didsm9:ghost:6874e0ac5d689b3a18c0401bfbea62a95ecbb2f5a0817f0524d4229c545b34d2"}
+{"ts": 1787093204.4582946, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_auth", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34", "error": "auth_decrypt"}
+{"ts": 1787093204.4763236, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_tgt_expired", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787093204.5848722, "ticket_id": null, "action": "as_req", "result": "rejected_ts", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787107206.7787035, "ticket_id": null, "action": "register", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787107207.059247, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "as_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787107207.231634, "ticket_id": null, "action": "as_req", "result": "rejected_replay", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787107207.2355945, "ticket_id": "5009f9834f33ba124cac47c2794970cc", "action": "tgs_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787107207.2374725, "ticket_id": null, "action": "ap_req", "result": "rejected_st", "principal": "-", "error": "st_decrypt"}
+{"ts": 1787107207.2384205, "ticket_id": null, "action": "tgs_req", "result": "rejected_tgt", "principal": "-", "error": "tgt_decrypt"}
+{"ts": 1787107207.6861749, "ticket_id": null, "action": "register", "result": "rejected_sig", "principal": "didsm9:intruder:32f371a2478d8d0fc5db1e4f1719067a55fb6a1229896c6cb7a3b431857e0915"}
+{"ts": 1787107207.8115354, "ticket_id": null, "action": "as_req", "result": "rejected_unknown", "principal": "didsm9:ghost:6874e0ac5d689b3a18c0401bfbea62a95ecbb2f5a0817f0524d4229c545b34d2"}
+{"ts": 1787107207.813905, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_auth", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34", "error": "auth_decrypt"}
+{"ts": 1787107207.830444, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_tgt_expired", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787107207.9312418, "ticket_id": null, "action": "as_req", "result": "rejected_ts", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}

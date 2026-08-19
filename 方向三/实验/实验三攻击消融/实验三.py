@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.claims_checker import ClaimsChecker
 from core.common import SEED, csv_meta, rand_bytes, write_csv
@@ -29,7 +29,7 @@ TOOLS = ["file.read", "file.write", "db.query", "agent.run"]
 ACTIONS = ["read", "write", "execute", "manage"]
 N_CMDS = 500
 RATIOS = {"normal": 0.60, "tampered": 0.16, "priv_esc": 0.16, "replay": 0.08}
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 
 
 def gen_commands(n=N_CMDS, seed=SEED):

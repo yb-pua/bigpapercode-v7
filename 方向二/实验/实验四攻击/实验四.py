@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.authorization import (issue_auth, issue_session_credential,
                                 proxy_delegate, proxy_verify,
@@ -28,7 +28,7 @@ from core.st_ticket import STService, netperm_defaults
 from core.tunnel import Tunnel
 
 N_ATTACK = 100                 # 每攻击用例次数
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 _dev_counter = [0]
 
 

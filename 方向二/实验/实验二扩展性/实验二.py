@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.common import (SEED, csv_meta, get_rng, rand_bytes, stats_ms,
                          write_csv)
@@ -38,7 +38,7 @@ from core.tunnel import Tunnel
 SCALE_GRADIENTS = [10, 50, 100, 200]
 BG_MBPS_PER_DEV = 1.0
 SAMPLING_S = 20.0
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 
 
 # ----------------------------------------------------------------------

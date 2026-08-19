@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.audit_logger import AuditLogger
 from core.claims_checker import ClaimsChecker
@@ -27,7 +27,7 @@ SERVICE = "mcp-server@realm"
 GW_SERVICE = "mcp-gateway@realm"
 TOOLS = ["file.read", "file.write", "db.query", "agent.run"]
 ACTIONS = ["read", "write", "execute", "manage"]
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 AUDIT_LOG = Path("/tmp/exp3_c1_audit.log")
 
 

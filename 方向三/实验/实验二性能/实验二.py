@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.claims_checker import ClaimsChecker
 from core.common import SEED, csv_meta, write_csv
@@ -28,7 +28,7 @@ from core.st_ticket import STService, netperm_defaults
 SERVICE = "mcp-server@realm"
 CONCURRENCIES = [100, 500]          # 1000 参数预留（--conc1000）
 N_REQ = 1000
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 
 
 def run_ours_bench(sm9, kdc, agent, netperm, claims, concurrency, n_req):

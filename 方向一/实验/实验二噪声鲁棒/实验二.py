@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.common import get_rng, csv_meta, write_csv
@@ -23,6 +24,10 @@ from exp_common import (cohort_persons, enroll_from_images, load_cache, log,
                         person_embs, quantize, similarity)
 from data_config import (FIGURES_DIR, INSIGHTFACE_ROOT, RESULTS_DIR,
                          VOTE_COHORT_MIN_IMAGES, VOTE_ENROLL_IMAGES)
+RESULTS_DIR = Path(__file__).resolve().parent / "结果"
+FIGURES_DIR = RESULTS_DIR / "figures"
+AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
+TEE_AUDIT_PATH = RESULTS_DIR / "kdc_tee_audit.jsonl"
 
 PERTURB_SEED = 20260817
 CHUNK_PERSONS = 5

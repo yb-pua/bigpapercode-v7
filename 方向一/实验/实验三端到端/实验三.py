@@ -14,6 +14,7 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.audit_logger import AuditLogger
@@ -29,6 +30,10 @@ from exp_common import (cohort_persons, enroll_from_images, load_cache, log,
                         person_embs, quantize)
 from data_config import (AUDIT_PATH, FIGURES_DIR, RESULTS_DIR, TEE_AUDIT_PATH,
                          VOTE_COHORT_MIN_IMAGES, VOTE_ENROLL_IMAGES)
+RESULTS_DIR = Path(__file__).resolve().parent / "结果"
+FIGURES_DIR = RESULTS_DIR / "figures"
+AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
+TEE_AUDIT_PATH = RESULTS_DIR / "kdc_tee_audit.jsonl"
 
 N_PERSONS = 30
 SERVICE_ID = "svc_a@REALM"

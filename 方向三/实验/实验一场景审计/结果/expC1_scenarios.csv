@@ -1,6 +1,6 @@
 scenario,steps,passed,reject_reason,latency_ms
-A_data_query,4,1,,1283.57000000
-B_collab_chain,8,1,,1281.65000000
-C_cross_domain,2,1,,566.39000000
+A_data_query,4,1,,1021.97000000
+B_collab_chain,8,1,,1021.68000000
+C_cross_domain,2,1,,448.80000000
 C_expired_st_net_rejected,1,1,st_net expired,0.00000000
 #meta {"seed": 20260817}

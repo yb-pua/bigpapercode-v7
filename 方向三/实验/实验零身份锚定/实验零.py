@@ -8,7 +8,7 @@ C0 Agent 身份锚点可行性：4 类环境唯一标识 → Agent 设备 DID �
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.common import SEED, csv_meta, write_csv
 from core.did import make_device_did
@@ -18,7 +18,7 @@ from core.sm9_engine import SM9Engine
 
 ENV_TYPES = ["docker", "linux", "windows", "vmware"]
 N_PER_TYPE = 50
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 
 
 def main():

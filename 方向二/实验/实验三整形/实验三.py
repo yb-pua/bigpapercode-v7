@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from core.common import (SEED, csv_meta, get_rng, rand_bytes, write_csv)
@@ -34,7 +34,7 @@ SCHEMES = ["sm9_raw", "sm9_shaped", "tls_baseline"]
 RATE_MBPS = 1.0
 SEGMENT_S = 10 * 60           # D4：每型每方案 10min
 QUICK_S = 30                  # 冒烟
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 N_BINS = 20
 
 

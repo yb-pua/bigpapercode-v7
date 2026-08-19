@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.authorization import issue_auth, verify_auth
 from core.common import (SEED, csv_meta, get_rng, stats_ms, write_csv)
@@ -28,7 +28,7 @@ from core.sm9_engine import SM9Engine
 from core.st_ticket import netperm_defaults
 
 N_PER_CASE = 100               # 每类用例次数（≥100）
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 _dev_counter = [0]             # 设备 DID 全局计数器（避免同 seed 重复）
 
 

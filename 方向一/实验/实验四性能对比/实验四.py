@@ -16,12 +16,17 @@ from pathlib import Path
 
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.common import csv_meta, sm3, sm4_cbc_encrypt, sm4_cbc_decrypt, write_csv
 from core.did import make_user_did
 from core.sm9_engine import SM9Engine
 from data_config import FIGURES_DIR, RESULTS_DIR
+RESULTS_DIR = Path(__file__).resolve().parent / "结果"
+FIGURES_DIR = RESULTS_DIR / "figures"
+AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
+TEE_AUDIT_PATH = RESULTS_DIR / "kdc_tee_audit.jsonl"
 
 N_ITER = 200
 _BENCH_N = N_ITER

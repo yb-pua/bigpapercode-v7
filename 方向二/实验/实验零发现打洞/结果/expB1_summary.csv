@@ -1,0 +1,3 @@
+n_devices,discover_p50_ms,discover_p90_ms,topology_entries,connect_ok_rate,nat_pairs,theory_direct_rate,derived_relay_needed,derived_direct_rate,nat_distribution
+30,0.00247400,0.00324990,30,1.00000000,16,0.62500000,0.37500000,0.62500000,uniform(0.25,0.25,0.25,0.25)
+#meta {"seed": 20260817, "nat_distribution": "uniform"}

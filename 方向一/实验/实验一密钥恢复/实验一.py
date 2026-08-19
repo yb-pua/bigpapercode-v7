@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.common import (compute_auc_mann_whitney, compute_eer, csv_meta,
@@ -31,6 +32,10 @@ from exp_common import (build_impostor_pairs, cohort_persons,
                         summarize_attempts)
 from data_config import (FIGURES_DIR, IMPOSTOR_PAIRS, RESULTS_DIR,
                          VOTE_COHORT_MIN_IMAGES, VOTE_ENROLL_IMAGES)
+RESULTS_DIR = Path(__file__).resolve().parent / "结果"
+FIGURES_DIR = RESULTS_DIR / "figures"
+AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
+TEE_AUDIT_PATH = RESULTS_DIR / "kdc_tee_audit.jsonl"
 
 THETA_MAX = 40
 THETA_STEP = 2

@@ -11,11 +11,11 @@ value 语义：1=支持/具备，0=不支持；basis 为判定依据（代码逻
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.common import SEED, csv_meta, write_csv
 
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 
 DIMENSIONS = ["anti_replay", "anti_forgery", "perm_granularity",
               "caller_binding", "audit_attribution", "revocation",

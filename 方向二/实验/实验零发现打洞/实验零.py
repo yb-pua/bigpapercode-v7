@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.common import (SEED, csv_meta, get_rng, stats_ms, write_csv)
 from core.device import Device
@@ -30,7 +30,7 @@ from core.tunnel import Tunnel
 
 N_PRE = 30                     # 预试验规模（方案 §7：B0/B1 先 30 台）
 N_REPEAT = 30                  # NAT 类型对重复次数
-RESULTS = Path(__file__).resolve().parent.parent / "results"
+RESULTS = Path(__file__).resolve().parent / "结果"
 
 
 def main():
