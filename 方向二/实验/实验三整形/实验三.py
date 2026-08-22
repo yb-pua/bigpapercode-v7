@@ -175,10 +175,13 @@ def main():
         "rate_mbps": RATE_MBPS, "avg_redun_shaped": float(avg_redun),
         "tls_note": "TLS1.3 记录层模拟（AES-256-GCM 真实加解密）",
     }]
-    write_csv(RESULTS / "expB3_tunnel_shaping.csv", rows)
-    write_csv(RESULTS / "expB3_summary.csv", summary)
-    csv_meta(RESULTS / "expB3_tunnel_shaping.csv", {"seed": SEED})
-    csv_meta(RESULTS / "expB3_summary.csv", {"seed": SEED})
+    run_id = time.strftime("%Y%m%d_%H%M%S") + f"_{time.time_ns() % 1000000000:09d}"
+    out_dir = RESULTS / f"formal_v2_{run_id}"
+    out_dir.mkdir(parents=True, exist_ok=False)
+    write_csv(out_dir / "expB3_tunnel_shaping.csv", rows)
+    write_csv(out_dir / "expB3_summary.csv", summary)
+    csv_meta(out_dir / "expB3_tunnel_shaping.csv", {"seed": SEED})
+    csv_meta(out_dir / "expB3_summary.csv", {"seed": SEED})
 
 
 if __name__ == "__main__":

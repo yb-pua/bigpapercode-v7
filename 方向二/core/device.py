@@ -41,10 +41,14 @@ class Device:
         return kdc.register_device(self.did, self.owner_user_did, addr=addr)
 
     def obtain_authorization(self, kdc, netperm: dict, ttl: float = 1800.0) -> dict:
-        """KDC 签发授权 + ST（NetPerm）。"""
-        self.auth = kdc.issue_auth(self.did, netperm, exp=self.now() + ttl)
-        self.st = kdc.issue_ticket(self.did, "relay@realm", netperm,
-                                   caddr=self.caddr, ttl=ttl)
+        """KDC 原子设备接入：签发绑定 user/device 的授权 + ST。"""
+        access = kdc.issue_device_access(self.did, "relay@realm", netperm,
+                                         caddr=self.caddr, ttl=ttl)
+        if access is None:
+            raise RuntimeError("issue_device_access failed: device not enrolled "
+                               "or user auth context expired")
+        self.auth = access["auth"]
+        self.st = access["st"]
         return {"auth": self.auth, "st": self.st}
 
     # ------------------------------------------------------------------
@@ -53,11 +57,14 @@ class Device:
         return {"did": self.did, "auth": self.auth, "st": self.st,
                 "caddr": self.caddr}
 
-    def admission_round2(self, challenge: bytes) -> dict:
-        """入网第二轮：DID 挑战应答（SM9 私钥签名）。"""
+    def admission_round2(self, challenge_id: str, challenge: bytes,
+                         request_digest: str) -> dict:
+        """入网第二轮：DID 挑战应答（SM9 私钥签名，绑定 challenge_id/digest）。"""
         nonce = rand_bytes(16, f"dev_nonce_{self.did}")
         ts = self.now()
-        message = _pack({"did": self.did, "challenge": challenge.hex(),
+        message = _pack({"device_did": self.did, "challenge_id": challenge_id,
+                         "challenge": challenge.hex(),
+                         "request_digest": request_digest,
                          "nonce": nonce.hex(), "ts": ts})
         sig = self.sm9.sign(self.did, message)
         return {"nonce": nonce, "ts": ts, "sig": sig}

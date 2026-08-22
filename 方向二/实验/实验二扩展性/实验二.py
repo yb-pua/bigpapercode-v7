@@ -54,53 +54,61 @@ def run_ours(sm9, kdc, relay, netperm, n: int, duration: float = SAMPLING_S):
         assert dev.enroll(kdc)
         dev.obtain_authorization(kdc, netperm)
         t0 = time.perf_counter()
-        ok = admission(relay, dev)
+        r = admission(relay, dev)
         admit_times.append((time.perf_counter() - t0) * 1000.0)
-        if not ok:
-            raise RuntimeError(f"admission failed at i={i}")
+        if not r["ok"]:
+            raise RuntimeError(f"admission failed at i={i}: {r['error']}")
         devices.append(dev)
 
-    # 隧道建立（每设备与同网 peer 协商）
+    # 隧道建立（设备环形配对：peer = devices[(i+1) % n]）
     tunnels = []
-    peer = Device(f"scal-peer", "didsm9:user1:aaa", sm9)
-    for dev in devices:
+    for i, dev in enumerate(devices):
+        peer = devices[(i + 1) % n]
         ta = Tunnel(sm9, dev.did, peer.did)
         tb = Tunnel(sm9, peer.did, dev.did)
         state, r_init = ta.handshake_initiator()
         r_resp, key_b = tb.handshake_responder(r_init)
         key_a = ta.handshake_finish(state, r_resp)
-        tunnels.append((ta, key_a, "10.200.1.1"))
+        assert key_a == key_b
+        tunnels.append((ta, tb, key_a, peer))
 
-    # 流量模拟：每设备 1Mbps 背景流（1448B 帧 → ~86 pkt/s）+ 采样
+    # 流量模拟：每设备 1Mbps 背景流 + 测试流，数据面过 Relay 转发
     pkt_rate = int(BG_MBPS_PER_DEV * 1e6 / 8 / 1448)
     n_sent = np.zeros(n, dtype=np.int64)
     n_recv = np.zeros(n, dtype=np.int64)
+    wire_bytes = np.zeros(n, dtype=np.int64)
     e2e_lat = []
     lock = threading.Lock()
     stop = threading.Event()
 
-    def sender(idx, ta, key, vaddr):
+    def sender(idx, ta, tb, key, peer):
         seq = 0
         while not stop.is_set():
             payload = rand_bytes(1400, f"bg_{idx}_{seq % 10}")
             t0 = time.perf_counter()
-            frame = ta.frame_encrypt(payload, vaddr, seq, key=key)
+            frame = ta.frame_encrypt(payload, peer.vaddr, seq, key=key)
             n_sent[idx] += 1
-            # 转发路径（模拟中继）：立即送达（本机回环）
+            routed = relay.forward(frame)          # 中继按 vaddr 头路由
+            if routed != peer.vaddr:
+                seq += 1
+                time.sleep(1.0 / pkt_rate)
+                continue
             try:
-                v, p, s = ta.frame_decrypt(frame, key=key)
-                e2e = (time.perf_counter() - t0) * 1000.0
-                with lock:
-                    e2e_lat.append(e2e)
-                n_recv[idx] += 1
+                v, p, s = tb.frame_decrypt(frame, key=key)  # 接收端解密
+                if p == payload and s == seq:
+                    n_recv[idx] += 1
+                    wire_bytes[idx] += len(frame)
+                    e2e = (time.perf_counter() - t0) * 1000.0
+                    with lock:
+                        e2e_lat.append(e2e)
             except Exception:
                 pass
             seq += 1
             time.sleep(1.0 / pkt_rate)
 
     threads = []
-    for i, (ta, key, vaddr) in enumerate(tunnels):
-        t = threading.Thread(target=sender, args=(i, ta, key, vaddr),
+    for i, (ta, tb, key, peer) in enumerate(tunnels):
+        t = threading.Thread(target=sender, args=(i, ta, tb, key, peer),
                              daemon=True)
         t.start()
         threads.append(t)
@@ -111,27 +119,43 @@ def run_ours(sm9, kdc, relay, netperm, n: int, duration: float = SAMPLING_S):
 
     total_sent = int(n_sent.sum())
     total_recv = int(n_recv.sum())
-    throughput_mbps = total_recv * 1448 * 8 / (duration * 1e6)
+    payload_bytes = total_recv * 1400
+    wire_total = int(wire_bytes.sum())
+    payload_throughput_mbps = payload_bytes * 8 / (duration * 1e6)
+    wire_throughput_mbps = wire_total * 8 / (duration * 1e6)
     loss_rate = 1.0 - total_recv / max(1, total_sent)
     e2e = stats_ms(e2e_lat)
     admit = stats_ms(admit_times)
     return {
         "admit_p50_ms": admit["p50_ms"],
         "admit_p90_ms": admit["p90_ms"],
-        "throughput_mbps": throughput_mbps,
+        "payload_throughput_mbps": payload_throughput_mbps,
+        "wire_throughput_mbps": wire_throughput_mbps,
         "e2e_latency_ms": e2e["p50_ms"],
         "loss_rate": loss_rate,
     }
 
 
 def admission(relay, dev):
+    """两轮准入，统一返回字典；成功时写入 dev.vaddr / dev.credential。"""
     r1 = relay.begin_admission(dev.admission_round1(), "relay@realm")
     if not r1["ok"]:
-        return False, r1
-    r2 = dev.admission_round2(r1["challenge"])
-    return relay.finish_admission(dev.admission_round1(), r1["challenge"],
-                                  r2["sig"], r2["nonce"], r2["ts"],
-                                  "relay@realm")["ok"]
+        return {"ok": False, "stage": r1.get("stage", ""),
+                "error": r1.get("error", ""), "vaddr": None,
+                "credential": None}
+    r2 = dev.admission_round2(r1["challenge_id"], r1["challenge"],
+                              r1["request_digest"])
+    fin = relay.finish_admission(r1["challenge_id"], r1["challenge"],
+                                 r2["sig"], r2["nonce"], r2["ts"],
+                                 "relay@realm")
+    if not fin["ok"]:
+        return {"ok": False, "stage": fin.get("stage", ""),
+                "error": fin.get("error", ""), "vaddr": None,
+                "credential": None}
+    dev.vaddr = fin.get("vaddr")
+    dev.credential = fin.get("credential")
+    return {"ok": True, "stage": "all", "error": None,
+            "vaddr": fin.get("vaddr"), "credential": fin.get("credential")}
 
 
 # ----------------------------------------------------------------------
@@ -222,33 +246,46 @@ def measure_openvpn_handshake(n: int) -> dict:
 # 故障注入
 # ----------------------------------------------------------------------
 
-def run_failover(sm9, kdc, relay, netperm, n=50):
-    """kill 中继（本文）→ 中断范围/恢复时间；OpenVPN kill 网关为标注模拟。"""
-    devices = []
-    for i in range(n):
-        dev = Device(f"fo-dev-{i:04d}", "didsm9:user1:aaa", sm9)
-        assert dev.enroll(kdc)
-        dev.obtain_authorization(kdc, netperm)
-        assert admission(relay, dev)
-        devices.append(dev)
+def run_failover(sm9, kdc, netperm, n=50):
+    """中继进程重启模型：新 Relay 实例 + 重新 setup_proxy + 重新授权/ST + 再准入。"""
+    def _admit_all(relay):
+        devices = []
+        for i in range(n):
+            dev = Device(f"fo-dev-{i:04d}", "didsm9:user1:aaa", sm9)
+            assert dev.enroll(kdc)
+            dev.obtain_authorization(kdc, netperm)
+            r = admission(relay, dev)
+            assert r["ok"], r["error"]
+            devices.append(dev)
+        return devices
 
-    # 中断范围：中继侧 admitted 数量 = 全部（kill 前）
+    relay = Relay(sm9, kdc, relay_id="relay-1")
+    relay.setup_proxy()
+    devices = _admit_all(relay)
     before = len(relay.admitted)
-    relay.admitted.clear()                     # 模拟中继崩溃
-    # 恢复时间：设备重新准入（重连）
+
+    # 模拟中继进程重启：全新 Relay 实例 + 重新 setup_proxy + 设备重新授权/ST + 再准入
     t0 = time.perf_counter()
+    relay2 = Relay(sm9, kdc, relay_id="relay-1")
+    relay2.setup_proxy()
     for dev in devices:
-        assert admission(relay, dev)
+        dev.obtain_authorization(kdc, netperm)   # 票据重签（重新授权 + 重新签发 ST）
+        r = admission(relay2, dev)
+        assert r["ok"], r["error"]
     recovery = (time.perf_counter() - t0) * 1000.0
     return {
         "session_break_range": before,
         "recovery_time": recovery,
+        "failure_model": "relay_process_restart_with_ticket_reissue",
     }
 
 
 def main():
     debug = "--debug" in sys.argv
     quick = "--quick" in sys.argv
+    _run_id = time.strftime("%Y%m%d_%H%M%S") + f"_{time.time_ns() % 1000000000:09d}"
+    out_dir = RESULTS / f"formal_v2_{_run_id}"
+    out_dir.mkdir(parents=True, exist_ok=False)
     sm9 = SM9Engine()
     netperm = netperm_defaults()
     netperm["services"] = ["file-sync", "rtc"]
@@ -258,7 +295,8 @@ def main():
     rows = []
     for n in gradients:
         kdc = KDC(sm9)
-        kdc.register_user("didsm9:user1:aaa")
+        ctx = kdc.auth_context.issue("didsm9:user1:aaa", "src-1", "ev-1")
+        assert kdc.register_user_context(ctx)
         relay = Relay(sm9, kdc, relay_id="relay-1")
         relay.setup_proxy()
         t0 = time.perf_counter()
@@ -268,14 +306,17 @@ def main():
             "N": n, "scheme": "st_ticket_sm9",
             "admit_p50_ms": ours["admit_p50_ms"],
             "admit_p90_ms": ours["admit_p90_ms"],
-            "throughput_mbps": ours["throughput_mbps"],
+            "payload_throughput_mbps": ours["payload_throughput_mbps"],
+            "wire_throughput_mbps": ours["wire_throughput_mbps"],
             "e2e_latency_ms": ours["e2e_latency_ms"],
             "loss_rate": ours["loss_rate"],
-            "relay_cpu_pct": 0.0,               # 本机回环模拟，不采样外部进程
-            "relay_mem_mb": 0.0,
+            "relay_cpu_pct": float("nan"),      # 本机内存微基准，不采样外部进程资源
+            "relay_mem_mb": float("nan"),
+            "measurement_mode": "in_memory_microbenchmark",
+            "relay_resource_isolation": False,
         })
         print(f"  N={n}: admit_p50={ours['admit_p50_ms']:.1f}ms "
-              f"thr={ours['throughput_mbps']:.1f}Mbps "
+              f"payload_thr={ours['payload_throughput_mbps']:.1f}Mbps "
               f"loss={ours['loss_rate']:.4f} elapsed={elapsed:.0f}s")
 
     # OpenVPN 基线（控制面握手，N=10 规模；数据面标注 simulated）
@@ -291,23 +332,27 @@ def main():
     rows.append({
         "N": 10, "scheme": "openvpn",
         "admit_p50_ms": ov_p50, "admit_p90_ms": ov_p90,
-        "throughput_mbps": -1.0,                # 数据面模拟（D1-A）
+        "payload_throughput_mbps": -1.0,        # 数据面模拟（D1-A）
+        "wire_throughput_mbps": -1.0,
         "e2e_latency_ms": -1.0, "loss_rate": -1.0,
-        "relay_cpu_pct": -1.0, "relay_mem_mb": -1.0,
+        "relay_cpu_pct": float("nan"), "relay_mem_mb": float("nan"),
+        "measurement_mode": "in_memory_microbenchmark",
+        "relay_resource_isolation": False,
     })
 
     # 故障注入
     kdc = KDC(sm9)
-    kdc.register_user("didsm9:user1:aaa")
-    relay = Relay(sm9, kdc, relay_id="relay-1")
-    relay.setup_proxy()
-    fo = run_failover(sm9, kdc, relay, netperm, n=10 if quick else 50)
+    ctx = kdc.auth_context.issue("didsm9:user1:aaa", "src-1", "ev-1")
+    assert kdc.register_user_context(ctx)
+    fo = run_failover(sm9, kdc, netperm, n=10 if quick else 50)
     failover_rows = [
         {"scheme": "st_ticket_sm9", "failure_point": "relay_killed",
          "session_break_range": fo["session_break_range"],
-         "recovery_time": fo["recovery_time"]},
+         "recovery_time": fo["recovery_time"],
+         "failure_model": fo["failure_model"]},
         {"scheme": "openvpn", "failure_point": "gateway_killed",
          "session_break_range": -1, "recovery_time": -1.0,
+         "failure_model": "simulated",
          "note": "数据面标注模拟（D1-A）"},
     ]
 
@@ -319,12 +364,12 @@ def main():
         "openvpn_handshake_p50_ms": ov_p50,
     }]
 
-    write_csv(RESULTS / "expB2_scalability.csv", rows)
-    write_csv(RESULTS / "expB2_failover.csv", failover_rows)
-    write_csv(RESULTS / "expB2_summary.csv", summary)
+    write_csv(out_dir / "expB2_scalability.csv", rows)
+    write_csv(out_dir / "expB2_failover.csv", failover_rows)
+    write_csv(out_dir / "expB2_summary.csv", summary)
     for f in ("expB2_scalability.csv", "expB2_failover.csv",
               "expB2_summary.csv"):
-        csv_meta(RESULTS / f, {"seed": SEED,
+        csv_meta(out_dir / f, {"seed": SEED,
                                "openvpn_dataplane": OPENVPN_DATAPLANE_MODE})
 
 

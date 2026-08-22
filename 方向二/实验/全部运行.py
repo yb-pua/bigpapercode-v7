@@ -10,15 +10,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV = "/home/yfish/trae/code/v6-大论文版/.venv/bin/python"
-STEPS = ["expB0_discovery_nat.py", "expB1_access.py", "expB2_scalability.py",
-         "expB3_tunnel_shaping.py", "expB4_attacks.py"]
+STEPS = ["实验零发现打洞/实验零.py", "实验一准入/实验一.py", "实验二扩展性/实验二.py",
+         "实验三整形/实验三.py", "实验四攻击/实验四.py"]
 
 
 def main():
     quick = "--quick" in sys.argv
     t0 = time.perf_counter()
     for name in STEPS:
-        cmd = [VENV, "-B", str(ROOT / "experiments" / name)]
+        cmd = [VENV, "-B", str(ROOT / name)]
         if quick:
             cmd.append("--quick")
         print(f"\n=== {name} ===")

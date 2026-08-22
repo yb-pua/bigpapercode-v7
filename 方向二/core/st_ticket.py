@@ -52,8 +52,10 @@ class STService:
 
     def issue_ticket(self, principal: str, service: str, netperm: dict,
                      caddr: str = "", times: Optional[dict] = None,
-                     ttl: float = TICKET_TTL) -> dict:
-        """签发 ST：payload 字段 + SM9 签名（KDC 私钥）。"""
+                     ttl: float = TICKET_TTL, auth_id: str = "",
+                     parent_auth_ticket_id: str = "",
+                     user_did: str = "") -> dict:
+        """签发 ST：payload 字段 + SM9 签名（KDC 私钥）。principal 即 device_did。"""
         import copy
         netperm = copy.deepcopy(netperm)
         now = self.now()
@@ -61,12 +63,16 @@ class STService:
         ticket_id = new_ticket_id()
         payload = {
             "realm": REALM,
+            "ticket_id": ticket_id,
+            "auth_id": auth_id,
+            "parent_auth_ticket_id": parent_auth_ticket_id,
+            "user_did": user_did,
+            "device_did": principal,
             "principal": principal,
             "sname": service,
             "netperm": netperm,
             "times": {"start": float(times["start"]), "end": float(times["end"])},
             "caddr": caddr,
-            "ticket_id": ticket_id,
             "issued_time": now,
         }
         sig = self.sm9.sign(self.kdc_did, _pack(payload))
