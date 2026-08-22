@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.data_loader import LFWLoader
 from core.face_embedder import EmbeddingCache, FaceEmbedder
-from data_config import CACHE_DIR, INSIGHTFACE_ROOT, LFW_DIR
+from data_config import CACHE_DIR, FORMAL_V2_CACHE_DIR, INSIGHTFACE_ROOT, LFW_DIR
 
 
 def main():
@@ -22,22 +22,32 @@ def main():
     ap.add_argument("--backend", default="insightface")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--cache-dir", default=None,
+                    help="输出缓存目录（默认 CACHE_DIR；正式用 cache_formal_v2）")
+    ap.add_argument("--full-lfw", action="store_true",
+                    help="全量提取 LFW（不限制每人张数）")
     ap.add_argument("--image-list", default=None,
                     help="JSON 文件，[{'person','image'},...]；不指定则全库")
     args = ap.parse_args()
+
+    if args.full_lfw and (args.limit or args.image_list):
+        ap.error("--full-lfw 不能与 --limit/--image-list 混用（全量不能是子集）")
+    cache_dir = (
+        Path(args.cache_dir)
+        if args.cache_dir
+        else (FORMAL_V2_CACHE_DIR if args.full_lfw else CACHE_DIR)
+    )
 
     loader = LFWLoader(LFW_DIR)
     if not loader.is_available():
         print("LFW not available at:", LFW_DIR)
         return 1
     if args.image_list:
-        import json
         all_images = json.loads(Path(args.image_list).read_text(encoding="utf-8"))
     else:
         all_images = []
         for person in loader.persons:
-            all_images.extend(
-                f"{person}/{img}" for img in loader.person_images(person))
+            all_images.extend(loader.person_images(person))
     if args.limit:
         all_images = all_images[:args.limit]
     print(f"LFW: {len(loader.persons)} persons, {len(all_images)} images")
@@ -52,7 +62,7 @@ def main():
     embedder = FaceEmbedder(backend=args.backend, model_root=INSIGHTFACE_ROOT)
     print("backend:", args.backend, "available:", embedder.is_available(),
           "status:", embedder.status)
-    cache = EmbeddingCache(str(CACHE_DIR), embedder)
+    cache = EmbeddingCache(str(cache_dir), embedder)
     t0 = time.time()
     embs = cache.build([_abs(p) for p in all_images], workers=args.workers)
     dt = time.time() - t0
@@ -63,12 +73,16 @@ def main():
         print(f"WARNING: {len(all_images) - n_ok} images failed")
     meta = {
         "backend": args.backend,
+        "model": "buffalo_l",
         "n_images": len(all_images),
         "n_extracted": n_ok,
         "seconds": dt,
         "status": embedder.status,
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "full_lfw": bool(args.full_lfw),
+        "cache_dir": str(cache_dir),
     }
-    (CACHE_DIR / f"meta_{args.backend}.json").write_text(
+    (cache_dir / f"meta_{args.backend}.json").write_text(
         json.dumps(meta), encoding="utf-8")
     return 0
 

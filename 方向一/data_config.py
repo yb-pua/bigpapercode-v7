@@ -24,6 +24,7 @@ INSIGHTFACE_ROOT = os.environ.get(
 )
 
 CACHE_DIR = PROJECT_ROOT / "cache"
+FORMAL_V2_CACHE_DIR = PROJECT_ROOT / "cache_formal_v2"   # 正式 V2 缓存（独立，禁止覆盖旧 cache/）
 RESULTS_DIR = PROJECT_ROOT / "results"
 FIGURES_DIR = RESULTS_DIR / "figures"
 
@@ -32,7 +33,9 @@ AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
 
 # 数据规约
 VOTE_COHORT_MIN_IMAGES = 5          # 投票主档：≥5 张（423 人）
+VOTE_PROBE_MIN_IMAGES = 6           # 正式划分：≥6 张（前5登记 + 第6独立 probe）
 VOTE_ENROLL_IMAGES = 5              # 投票登记张数
+ENROLL_IMAGES = 5                   # 登记张数（与 VOTE_ENROLL_IMAGES 语义一致）
 CROSS_CONDITION_MIN_IMAGES = 2      # 跨条件双样本：≥2 张（1680 人）
 IMPOSTOR_PAIRS = 5000               # 异人配对 ≥5000
 

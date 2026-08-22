@@ -15,14 +15,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.face_embedder import EmbeddingCache, FaceEmbedder
-from data_config import CACHE_DIR, INSIGHTFACE_ROOT
+from data_config import FORMAL_V2_CACHE_DIR, INSIGHTFACE_ROOT
 
 STEPS = [
-    ("A1", "expA1_biometric_key.py"),
-    ("A2", "expA2_noise_robustness.py"),
-    ("A3", "expA3_end_to_end.py"),
-    ("A4", "expA4_perf_compare.py"),
-    ("A5", "expA5_attacks_privacy.py"),
+    ("A1", "实验一密钥恢复/实验一.py"),
+    ("A2", "实验二噪声鲁棒/实验二.py"),
+    ("A3", "实验三端到端/实验三.py"),
+    ("A4", "实验四性能对比/实验四.py"),
+    ("A5", "实验五攻击隐私/实验五.py"),
 ]
 
 
@@ -35,18 +35,14 @@ def main():
 
     if not args.skip_cache:
         embedder = FaceEmbedder(backend="insightface", model_root=INSIGHTFACE_ROOT)
-        cache = EmbeddingCache(str(CACHE_DIR), embedder)
+        cache = EmbeddingCache(str(FORMAL_V2_CACHE_DIR), embedder)
         if not cache.has_cache():
-            need = CACHE_DIR / "needed_images.json"
-            if not need.exists():
-                raise SystemExit("cache/needed_images.json 缺失，请先运行 build_cache.py")
-            print("[run_all] 构建特征缓存 ...")
+            print("[run_all] 构建正式 V2 全量缓存 ...")
             subprocess.check_call([
-                sys.executable, str(root / "build_cache.py"),
-                "--image-list", str(need),
+                sys.executable, str(root / "建缓存.py"), "--full-lfw",
             ])
         else:
-            print("[run_all] 特征缓存已存在，跳过")
+            print("[run_all] 正式 V2 缓存已存在，跳过")
 
     results = {}
     for name, script in STEPS:

@@ -1,21 +1,23 @@
-"""A1 生物特征密钥可恢复性实验（对应专利"密钥撤销/可恢复"方向）。
+"""A1 生物特征密钥可恢复性实验（正式 V2：独立 probe 划分 + RS 符号错误注入）。
 
 内容：
-    A1-1 单图登记基线：423 人（≥5 张）登记第 1 张，探测第 2~5 张（1692 次）。
-    A1-2 五图投票登记：423 人登记 5 张（多数投票），探测 5 张（2115 次）。
-    A1-3 跨条件双样本：1680 人（≥2 张）登记第 1 张，探测第 2 张（1257 次）。
-    A1-4 异人冒用：5000 对异人，FAR。
-    A1-5 阈值扫描：θ∈{0..40} 字节错强制注入（登记侧），纠正/拒绝/误纠统计。
+    A1-1 单图登记基线：登记第 1 张，探测第 6 张及以后（独立 probe）。
+    A1-2 五图投票登记：登记前 5 张，探测第 6 张及以后（独立 probe）。
+    A1-3 跨条件双样本：≥2 张人群登记第 1 张，探测第 2 张。
+    A1-4 异人冒用：异人对，FAR。
+    A1-5 阈值扫描：θ∈{0..t=32} 个 RS 符号（字节）错误强制注入，检验恢复能力。
 
-输出：
-    results/expA1_vote_gain.csv     —— 单图 vs 五图投票（KRR/BER）
-    results/expA1_cross_condition.csv —— 跨条件双样本
-    results/expA1_impostor.csv      —— 异人 FAR
-    results/expA1_threshold_scan.csv —— θ 扫描
-    results/expA1_summary.csv       —— 汇总（含余弦相似度 EER/AUC 上下文）
+输出（隔离，不覆盖旧 CSV）：
+    结果/formal_v2_<run_id>/attempts.csv   —— 全部 attempt 行（统一 schema）
+    结果/formal_v2_<run_id>/summary.csv    —— 汇总（micro/macro KRR、balanced/extended）
+    结果/formal_v2_<run_id>/manifest.json  —— 元数据
 """
 
+import hashlib
+import json
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -23,63 +25,104 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.common import (compute_auc_mann_whitney, compute_eer, csv_meta,
-                         write_csv)
+from core.common import (compute_auc_mann_whitney, compute_eer, write_csv)
 from core.fuzzy_extractor import FuzzyExtractor, RS_T
+from core.stable_bits import byte_error_count
 from exp_common import (build_impostor_pairs, cohort_persons,
                         enroll_from_images, genuine_attempt, impostor_attempt,
-                        load_cache, log, person_embs, quantize, similarity,
-                        summarize_attempts)
-from data_config import (FIGURES_DIR, IMPOSTOR_PAIRS, RESULTS_DIR,
-                         VOTE_COHORT_MIN_IMAGES, VOTE_ENROLL_IMAGES)
-RESULTS_DIR = Path(__file__).resolve().parent / "结果"
-FIGURES_DIR = RESULTS_DIR / "figures"
-AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
-TEE_AUDIT_PATH = RESULTS_DIR / "kdc_tee_audit.jsonl"
+                        inject_rs_symbol_errors, load_cache, log, make_run_dir,
+                        person_embs, quantize, similarity, split_enroll_probe)
+from data_config import (FORMAL_V2_CACHE_DIR, IMPOSTOR_PAIRS,
+                         VOTE_PROBE_MIN_IMAGES, VOTE_ENROLL_IMAGES)
 
-THETA_MAX = 40
-THETA_STEP = 2
+RESULTS_DIR = Path(__file__).resolve().parent / "结果"
+THETA_MAX = RS_T          # θ 符号距离上限 = t=32
+SEED = 20260817
+SCAN_N = 200              # 阈值扫描抽样人数
+
+
+def _rel(p: str) -> str:
+    return f"{Path(p).parent.name}/{Path(p).name}"
+
+
+def _git_commit() -> str:
+    try:
+        cwd = str(Path(__file__).resolve().parent.parent.parent)
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+            cwd=cwd).stdout.strip()
+    except Exception:
+        return "unknown"
+
+
+def _cache_sha256() -> str:
+    p = FORMAL_V2_CACHE_DIR / "embs_insightface.npy"
+    if not p.exists():
+        return ""
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _krr_micro(rows) -> float:
+    return sum(r["ok"] for r in rows) / len(rows) if rows else 0.0
+
+
+def _krr_macro(rows) -> float:
+    from collections import defaultdict
+    per = defaultdict(list)
+    for r in rows:
+        per[r["person"]].append(r["ok"])
+    return float(np.mean([sum(v) / len(v) for v in per.values()])) if per else 0.0
 
 
 def main():
-    debug = "--debug" in sys.argv
     quick = "--quick" in sys.argv
-    scan_step = 5 if quick else THETA_STEP
-    scan_n = 50 if quick else 200
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    scan_n = 50 if quick else SCAN_N
+
+    out_dir = make_run_dir(RESULTS_DIR)
     fe = FuzzyExtractor()
-    embs = load_cache()
+    embs = load_cache(cache_dir=FORMAL_V2_CACHE_DIR)
     log(f"cache loaded: {len(embs)} images")
 
     # ---------- 队列 ----------
-    cohort = cohort_persons(embs, VOTE_COHORT_MIN_IMAGES)
-    log(f"cohort (>=5): {len(cohort)} persons")
-    cross = cohort_persons(embs, 2)
-    cross = [p for p in cross if len(person_embs(embs, p)) < VOTE_ENROLL_IMAGES]
-    log(f"cross-condition (2-4): {len(cross)} persons")
+    cohort = cohort_persons(embs, VOTE_PROBE_MIN_IMAGES)   # ≥6 张
+    log(f"cohort (>=6): {len(cohort)} persons")
+    cross = [p for p in cohort_persons(embs, 2)
+             if len(person_embs(embs, p)) < VOTE_PROBE_MIN_IMAGES]
+    log(f"cross-condition (2-5): {len(cross)} persons")
 
-    # ---------- A1-1/A1-2 投票增益 ----------
+    # ---------- A1-1/A1-2 投票增益（独立 probe） ----------
     rows_vote = []
     for person in cohort:
-        e = person_embs(embs, person, max_n=VOTE_ENROLL_IMAGES)
-        for probe in e[1:]:  # 单图基线：登记第 1 张
-            r = genuine_attempt(e[:1], probe, fe)
-            rows_vote.append({"config": "single", "person": person,
-                              "ok": int(r["ok"]),
-                              "byte_errors": r["byte_errors"]})
-        for probe in e:      # 五图投票：登记 5 张
-            r = genuine_attempt(e, probe, fe)
-            rows_vote.append({"config": "vote5", "person": person,
-                              "ok": int(r["ok"]),
-                              "byte_errors": r["byte_errors"]})
-    s_single = summarize_attempts(
-        [r for r in rows_vote if r["config"] == "single"])
-    s_vote = summarize_attempts(
-        [r for r in rows_vote if r["config"] == "vote5"])
-    write_csv(RESULTS_DIR / "expA1_vote_gain.csv", rows_vote)
-    log(f"A1-1/2: single KRR={s_single['krr']:.4f} BER={s_single['ber_mean']:.2f} | "
-        f"vote5 KRR={s_vote['krr']:.4f} BER={s_vote['ber_mean']:.2f}")
+        sp = split_enroll_probe(embs, person, enroll_n=VOTE_ENROLL_IMAGES)
+        if sp is None:
+            continue
+        enroll_embs = sp["enroll_embs"]
+        probe_paths = sp["probe_paths"]
+        probe_embs = sp["probe_embs"]
+        for idx, (pp, pe) in enumerate(zip(probe_paths, probe_embs)):
+            bucket = "first_probe" if idx == 0 else "additional_probe"
+            r1 = genuine_attempt(enroll_embs[:1], pe, fe)   # single：第 1 张登记
+            rows_vote.append({
+                "experiment": "vote_gain", "person": person, "person_b": "",
+                "config": "single", "enroll_count": 1,
+                "probe_path": _rel(pp), "probe_index": idx,
+                "probe_bucket": bucket, "in_balanced": int(idx == 0),
+                "in_extended": 1, "ok": int(r1["ok"]),
+                "byte_errors": r1["byte_errors"],
+                "theta_requested": "", "theta_observed": "", "seed": ""})
+            r5 = genuine_attempt(enroll_embs, pe, fe)        # vote5：前 5 张登记
+            rows_vote.append({
+                "experiment": "vote_gain", "person": person, "person_b": "",
+                "config": "vote5", "enroll_count": len(enroll_embs),
+                "probe_path": _rel(pp), "probe_index": idx,
+                "probe_bucket": bucket, "in_balanced": int(idx == 0),
+                "in_extended": 1, "ok": int(r5["ok"]),
+                "byte_errors": r5["byte_errors"],
+                "theta_requested": "", "theta_observed": "", "seed": ""})
 
     # ---------- A1-3 跨条件双样本 ----------
     rows_cross = []
@@ -88,11 +131,13 @@ def main():
         if len(e) < 2:
             continue
         r = genuine_attempt(e[:1], e[1], fe)
-        rows_cross.append({"person": person, "ok": int(r["ok"]),
-                           "byte_errors": r["byte_errors"]})
-    s_cross = summarize_attempts(rows_cross)
-    write_csv(RESULTS_DIR / "expA1_cross_condition.csv", rows_cross)
-    log(f"A1-3: cross KRR={s_cross['krr']:.4f} BER={s_cross['ber_mean']:.2f}")
+        rows_cross.append({
+            "experiment": "cross_condition", "person": person, "person_b": "",
+            "config": "", "enroll_count": 1, "probe_path": "",
+            "probe_index": "", "probe_bucket": "", "in_balanced": "",
+            "in_extended": "", "ok": int(r["ok"]),
+            "byte_errors": r["byte_errors"],
+            "theta_requested": "", "theta_observed": "", "seed": ""})
 
     # ---------- A1-4 异人冒用 ----------
     pairs = build_impostor_pairs(embs, cohort, IMPOSTOR_PAIRS)
@@ -101,37 +146,37 @@ def main():
         ea = person_embs(embs, pa, max_n=VOTE_ENROLL_IMAGES)
         eb = person_embs(embs, pb, max_n=1)
         r = impostor_attempt(ea, eb[0], fe)
-        rows_imp.append({"person_a": pa, "person_b": pb,
-                         "ok": int(r["ok"]), "byte_errors": r["byte_errors"]})
-    n_ok = sum(r["ok"] for r in rows_imp)
-    far = n_ok / len(rows_imp)
-    write_csv(RESULTS_DIR / "expA1_impostor.csv", rows_imp)
-    log(f"A1-4: impostor n={len(rows_imp)} FAR={far:.6f}")
+        rows_imp.append({
+            "experiment": "impostor", "person": pa, "person_b": pb,
+            "config": "", "enroll_count": len(ea), "probe_path": "",
+            "probe_index": "", "probe_bucket": "", "in_balanced": "",
+            "in_extended": "", "ok": int(r["ok"]),
+            "byte_errors": r["byte_errors"],
+            "theta_requested": "", "theta_observed": "", "seed": ""})
 
-    # ---------- A1-5 阈值扫描（单图登记，θ 字节强制翻转） ----------
-    scan_persons = cohort[:scan_n]  # 200 人抽样（全量 423 人耗时相同，抽样以提速）
+    # ---------- A1-5 阈值扫描（独立 probe + RS 符号错误注入） ----------
     rows_scan = []
-    for person in scan_persons:
-        e = person_embs(embs, person, max_n=2)
-        W, mask, bio_key, sigma = enroll_from_images(e[:1], fe)
-        for theta in range(0, THETA_MAX + 1, scan_step):
-            pb = quantize(e[1])[mask == 1]
-            if theta > 0:
-                flip = np.random.RandomState(0).randint(
-                    0, 2, min(theta * 8, pb.size))
-                pb = pb.copy()
-                pb[: flip.size] ^= flip.astype(np.uint8)
-            out = fe.rep(pb, sigma, key_hash=fe.key_hash(bio_key))
+    for person in cohort[:scan_n]:
+        sp = split_enroll_probe(embs, person, enroll_n=VOTE_ENROLL_IMAGES)
+        if sp is None:
+            continue
+        W, mask, bio_key, sigma = enroll_from_images(sp["enroll_embs"], fe)
+        # 从登记序列 W 注入精确 θ 个 RS 符号错误（byte_error_count(W,·)==θ）
+        for theta in range(0, THETA_MAX + 1):
+            seed = SEED + theta
+            perturbed = inject_rs_symbol_errors(W, theta, seed) if theta > 0 else W
+            theta_obs = byte_error_count(W, perturbed)
+            out = fe.rep(perturbed, sigma, key_hash=fe.key_hash(bio_key))
             rows_scan.append({
-                "theta": theta,
-                "person": person,
-                "ok": int(out == bio_key),
-            })
-    write_csv(RESULTS_DIR / "expA1_threshold_scan.csv", rows_scan)
-    for theta in range(0, THETA_MAX + 1, scan_step):
-        sub = [r for r in rows_scan if r["theta"] == theta]
-        krr = sum(r["ok"] for r in sub) / len(sub)
-        log(f"A1-5: theta={theta:2d} KRR={krr:.3f}")
+                "experiment": "synthetic_rs_threshold_scan",
+                "person": person, "person_b": "",
+                "config": "", "enroll_count": VOTE_ENROLL_IMAGES,
+                "probe_path": "", "probe_index": "",
+                "probe_bucket": "", "in_balanced": "",
+                "in_extended": "", "ok": int(out == bio_key),
+                "byte_errors": theta_obs,
+                "theta_requested": theta, "theta_observed": theta_obs,
+                "seed": seed})
 
     # ---------- 余弦相似度上下文（EER/AUC） ----------
     gen_sims, imp_sims = [], []
@@ -153,36 +198,68 @@ def main():
     eer = compute_eer(far_arr, frr_arr)
     log(f"context: EER={eer:.4f} AUC={auc:.4f}")
 
-    # ---------- 汇总 ----------
+    # ---------- 汇总（micro/macro × balanced/extended） ----------
+    def _rows(cfg, policy):
+        rr = [r for r in rows_vote if r["config"] == cfg]
+        if policy == "balanced":
+            return [r for r in rr if r["in_balanced"]]
+        return [r for r in rr if r["in_extended"]]
+
     summary = [
         {"metric": "cohort_persons", "value": len(cohort)},
         {"metric": "cross_persons", "value": len(cross)},
-        {"metric": "single_krr", "value": s_single["krr"]},
-        {"metric": "single_ber_mean", "value": s_single["ber_mean"]},
-        {"metric": "single_ber_p95", "value": s_single["ber_p95"]},
-        {"metric": "vote5_krr", "value": s_vote["krr"]},
-        {"metric": "vote5_ber_mean", "value": s_vote["ber_mean"]},
-        {"metric": "vote5_ber_p95", "value": s_vote["ber_p95"]},
-        {"metric": "cross_krr", "value": s_cross["krr"]},
-        {"metric": "cross_ber_mean", "value": s_cross["ber_mean"]},
+        {"metric": "cross_krr", "value": _krr_micro(rows_cross)},
+        {"metric": "cross_ber_mean",
+         "value": float(np.mean([r["byte_errors"] for r in rows_cross]))
+         if rows_cross else 0.0},
         {"metric": "impostor_pairs", "value": len(rows_imp)},
-        {"metric": "impostor_far", "value": far},
+        {"metric": "impostor_far",
+         "value": sum(r["ok"] for r in rows_imp) / max(1, len(rows_imp))},
         {"metric": "context_eer", "value": eer},
         {"metric": "context_auc", "value": auc},
         {"metric": "rs_t", "value": RS_T},
+        {"metric": "policy_max_correct", "value": 28},
     ]
-    write_csv(RESULTS_DIR / "expA1_summary.csv", summary)
-    csv_meta(RESULTS_DIR / "expA1_summary.csv", {
-        "seed": 20260817,
-        "binarization": "sign-threshold-0",
-        "stable_threshold": 0.8,
-        "rs": f"RS({255},{191},t={RS_T})",
-        "cohort_n": len(cohort),
-        "cross_n": len(cross),
-        "impostor_n": len(rows_imp),
+    for cfg in ("single", "vote5"):
+        for policy in ("balanced", "extended"):
+            rr = _rows(cfg, policy)
+            errs = [r["byte_errors"] for r in rr]
+            summary += [
+                {"metric": f"{cfg}_{policy}_krr_micro", "value": _krr_micro(rr)},
+                {"metric": f"{cfg}_{policy}_krr_macro", "value": _krr_macro(rr)},
+                {"metric": f"{cfg}_{policy}_ber_mean",
+                 "value": float(np.mean(errs)) if errs else 0.0},
+                {"metric": f"{cfg}_{policy}_ber_p95",
+                 "value": float(np.percentile(errs, 95)) if errs else 0.0},
+                {"metric": f"{cfg}_{policy}_n_attempts", "value": len(rr)},
+            ]
+    # 阈值扫描：每个 θ 的 KRR
+    for theta in range(0, THETA_MAX + 1):
+        sub = [r for r in rows_scan if r["theta_requested"] == theta]
+        summary.append({"metric": f"theta{theta}_krr",
+                        "value": _krr_micro(sub) if sub else 0.0})
+
+    # ---------- 落盘 ----------
+    attempts = rows_vote + rows_cross + rows_imp + rows_scan
+    write_csv(out_dir / "attempts.csv", attempts)
+    write_csv(out_dir / "summary.csv", summary)
+    manifest = {
+        "git_commit": _git_commit(),
+        "seed": SEED,
+        "cache_path": str(FORMAL_V2_CACHE_DIR),
+        "cache_sha256": _cache_sha256(),
+        "split_policy": "enroll=5, probe=6+ (balanced=仅第6张, extended=第6张及以后)",
+        "model": "insightface/buffalo_l",
+        "implementation": "reedsolo" if fe.helper_uses_reedsolo() else "simulated",
+        "start_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "environment": "LFW funneled",
+        "rs_t": RS_T,
+        "policy_max_correct": 28,
         "theta_max": THETA_MAX,
-    })
-    log("A1 done -> results/expA1_*.csv")
+    }
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"A1 done -> {out_dir.relative_to(RESULTS_DIR)}")
 
 
 if __name__ == "__main__":

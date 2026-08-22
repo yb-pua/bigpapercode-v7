@@ -1,5 +1,6 @@
 """core 单元测试（验收项：RS 自测 / 熔断 / 30min / 预留接口）。"""
 
+import json
 import os
 import sys
 import tempfile
@@ -17,9 +18,11 @@ from core.circuit_breaker import CircuitBreaker
 from core.did import DIDRegistry, make_device_did, make_user_did
 from core.fuzzy_extractor import FuzzyExtractor, RS_K, RS_N, rs_encode
 from core.kerberos_enhanced import (AS, KerberosClient, KerberosRealm,
-                                    Service, TGS, MAX_SKEW, TICKET_TTL)
+                                    Service, TGS, MAX_SKEW, TICKET_TTL,
+                                    _b64e, _pack)
 from core.kdc_tee import SimulatedTeeKgc
 from core.noise_injector import apply_noise
+from core.simulated_bio_tee import SimulatedBioTEE
 from core.sm9_engine import SM9Engine
 from core.stable_bits import (bits_to_bytes, byte_error_count,
                               bytes_to_bits, majority_vote, select_stable)
@@ -228,6 +231,221 @@ class TestKgcTee:
 
 
 # ---------------------------------------------------------------------------
+# 5.5 模拟生物 TEE（生物门控签名 + 限次 + 证明）
+# ---------------------------------------------------------------------------
+class TestSimulatedBioTEE:
+    def _setup(self, seed=11):
+        tee = SimulatedBioTEE()
+        base = np.random.RandomState(seed).randn(512).astype(np.float64)
+        enrolls = [base.copy() for _ in range(5)]
+        did = make_user_did("tee_user")
+        reg_msg = json.dumps({"user_id": "tee_user", "did": did, "ts": 1000.0},
+                             sort_keys=True).encode("utf-8")
+        resp = tee.enroll(did, enrolls, reg_msg)
+        return tee, did, base, resp
+
+    def _auth(self, tee, did, probe, nonce=None, ts=1000.0, purpose="kerberos_as"):
+        nonce = nonce or b"1234567890123456"
+        context = _pack({"did": did, "ts": ts, "nonce": _b64e(nonce)})
+        return tee.authenticate_and_sign(did, probe, context, nonce, ts,
+                                         purpose=purpose)
+
+    def test_enroll_ok(self):
+        tee, did, base, resp = self._setup()
+        try:
+            assert resp["ok"]
+            assert resp["registration_signature"] is not None
+            assert resp["simulated"] is True
+        finally:
+            tee.stop()
+
+    def test_genuine_probe_signs(self):
+        tee, did, base, resp = self._setup()
+        try:
+            r = self._auth(tee, did, base)
+            assert r["ok"]
+            ev = r["evidence"]
+            assert ev is not None
+            assert ev["schema_version"] == "v1"
+            assert ev["user_did"] == did
+            assert ev["auth_method"] == "bio-sm9-simulated"
+            assert ev["signature"]
+            assert ev["attestation"]["measurement"] == "simulated-bio-tee-v1"
+            assert tee.verify_attestation(ev)
+        finally:
+            tee.stop()
+
+    def test_impostor_no_signature(self):
+        tee, did, base, resp = self._setup()
+        try:
+            other = np.random.RandomState(999).randn(512).astype(np.float64)
+            r = self._auth(tee, did, other)
+            assert not r["ok"]
+            assert r["evidence"] is None
+        finally:
+            tee.stop()
+
+    def test_lockout_after_3_failures(self):
+        tee, did, base, resp = self._setup()
+        try:
+            other = np.random.RandomState(999).randn(512).astype(np.float64)
+            for _ in range(3):
+                r = self._auth(tee, did, other)
+                assert not r["ok"]
+            r = self._auth(tee, did, base)
+            assert not r["ok"] and r["error"] == "blocked"
+        finally:
+            tee.stop()
+
+    def test_reset_on_success(self):
+        tee, did, base, resp = self._setup()
+        try:
+            other = np.random.RandomState(999).randn(512).astype(np.float64)
+            for _ in range(2):
+                self._auth(tee, did, other)
+            r = self._auth(tee, did, base)
+            assert r["ok"]
+            r2 = self._auth(tee, did, other)
+            assert not r2["ok"] and r2["error"] == "bio_auth_failed"
+        finally:
+            tee.stop()
+
+    def test_unlimited_attempts_no_lockout(self):
+        tee = SimulatedBioTEE(max_attempts=None)
+        base = np.random.RandomState(12).randn(512).astype(np.float64)
+        enrolls = [base.copy() for _ in range(5)]
+        did = make_user_did("tee_unlimited")
+        reg_msg = json.dumps({"user_id": "tee_unlimited", "did": did, "ts": 1000.0},
+                             sort_keys=True).encode("utf-8")
+        tee.enroll(did, enrolls, reg_msg)
+        try:
+            other = np.random.RandomState(999).randn(512).astype(np.float64)
+            for _ in range(5):
+                r = self._auth(tee, did, other)
+                assert not r["ok"] and r["error"] == "bio_auth_failed"
+        finally:
+            tee.stop()
+
+    def test_as_registrations_clean(self):
+        tee, did, base, resp = self._setup()
+        try:
+            realm = KerberosRealm()
+            as_server = AS(realm, tee)
+            as_server.register(did, "tee_user", resp["registration_signature"],
+                               1000.0, now=1000.0)
+            rec = as_server.registrations[did]
+            for k in ("key_hash", "sigma", "bio_key", "mask", "sk", "private_key"):
+                assert k not in rec
+        finally:
+            tee.stop()
+
+    def test_no_sensitive_methods(self):
+        tee = SimulatedBioTEE()
+        try:
+            for name in ("get_bio_key", "get_key_hash", "get_sigma", "get_mask",
+                         "derive_sk", "export_private_key", "sign_without_biometric",
+                         "debug_rep_error_count"):
+                assert not hasattr(tee, name), name
+        finally:
+            tee.stop()
+
+    def test_replay_nonce_rejected(self):
+        tee, did, base, resp = self._setup()
+        try:
+            realm = KerberosRealm()
+            as_server = AS(realm, tee)
+            as_server.register(did, "tee_user", resp["registration_signature"],
+                               1000.0, now=1000.0)
+            nonce = b"replay_nonce_123456"
+            r = self._auth(tee, did, base, nonce=nonce)
+            assert r["ok"]
+            r1 = as_server.authenticate(did, nonce, 1000.0, r["evidence"], now=1000.0)
+            r2 = as_server.authenticate(did, nonce, 1000.0, r["evidence"], now=1000.0)
+            assert r1["ok"]
+            assert not r2["ok"] and r2["error"] == "replay_detected"
+        finally:
+            tee.stop()
+
+    def test_tampered_attestation_rejected(self):
+        tee, did, base, resp = self._setup()
+        try:
+            realm = KerberosRealm()
+            as_server = AS(realm, tee)
+            as_server.register(did, "tee_user", resp["registration_signature"],
+                               1000.0, now=1000.0)
+            nonce = b"nonce_1234567890123456"
+            r = self._auth(tee, did, base, nonce=nonce)
+            assert r["ok"]
+            tampered = dict(r["evidence"])
+            tampered["attestation"] = dict(r["evidence"]["attestation"])
+            tampered["attestation"]["mac"] = "00" * 32
+            rr = as_server.authenticate(did, nonce, 1000.0, tampered, now=1000.0)
+            assert not rr["ok"] and rr["error"] == "attestation_invalid"
+        finally:
+            tee.stop()
+
+    def test_purpose_mismatch_rejected(self):
+        tee, did, base, resp = self._setup()
+        try:
+            realm = KerberosRealm()
+            as_server = AS(realm, tee)
+            as_server.register(did, "tee_user", resp["registration_signature"],
+                               1000.0, now=1000.0)
+            nonce = b"nonce_purpose_12345678"
+            context = _pack({"did": did, "ts": 1000.0, "nonce": _b64e(nonce)})
+            r = tee.authenticate_and_sign(did, base, context, nonce, 1000.0)
+            assert r["ok"]
+            tampered = dict(r["evidence"])
+            tampered["purpose"] = "mcp_user_authorization"
+            rr = as_server.authenticate(did, nonce, 1000.0, tampered, now=1000.0)
+            assert not rr["ok"] and rr["error"] == "purpose_mismatch"
+        finally:
+            tee.stop()
+
+    def test_auth_method_mismatch_rejected(self):
+        tee, did, base, resp = self._setup()
+        try:
+            realm = KerberosRealm()
+            as_server = AS(realm, tee)
+            as_server.register(did, "tee_user", resp["registration_signature"],
+                               1000.0, now=1000.0)
+            nonce = b"nonce_authmethod_12345"
+            context = _pack({"did": did, "ts": 1000.0, "nonce": _b64e(nonce)})
+            r = tee.authenticate_and_sign(did, base, context, nonce, 1000.0)
+            assert r["ok"]
+            tampered = dict(r["evidence"])
+            tampered["auth_method"] = "evil"
+            rr = as_server.authenticate(did, nonce, 1000.0, tampered, now=1000.0)
+            assert not rr["ok"] and rr["error"] == "attestation_invalid"
+        finally:
+            tee.stop()
+
+    def test_issued_at_mismatch_rejected(self):
+        tee, did, base, resp = self._setup()
+        try:
+            realm = KerberosRealm()
+            as_server = AS(realm, tee)
+            as_server.register(did, "tee_user", resp["registration_signature"],
+                               1000.0, now=1000.0)
+            nonce = b"nonce_issuedat_123456"
+            context = _pack({"did": did, "ts": 1000.0, "nonce": _b64e(nonce)})
+            r = tee.authenticate_and_sign(did, base, context, nonce, 1000.0)
+            assert r["ok"]
+            tampered = dict(r["evidence"])
+            tampered["issued_at"] = 9999.0
+            rr = as_server.authenticate(did, nonce, 1000.0, tampered, now=1000.0)
+            assert not rr["ok"] and rr["error"] == "attestation_invalid"
+        finally:
+            tee.stop()
+
+    def test_stop_terminates_process(self):
+        tee = SimulatedBioTEE()
+        assert tee._proc.is_alive()
+        tee.stop()
+        assert not tee._proc.is_alive()
+
+
+# ---------------------------------------------------------------------------
 # 6. Kerberos 增强：30min 窗口（验收 5）、claims_checker（验收 6）
 # ---------------------------------------------------------------------------
 class TestKerberosEnhanced:
@@ -235,34 +453,32 @@ class TestKerberosEnhanced:
         import tempfile
         td = tempfile.mkdtemp()
         realm = KerberosRealm(audit_logger=None, now_fn=now_fn)
-        engine = SM9Engine()
-        as_server = AS(realm, engine)
+        tee = SimulatedBioTEE()
+        as_server = AS(realm, tee)
         tgs_server = TGS(realm)
         service_id = "svc_a@REALM"
         realm.register_service(service_id)
         service = Service(realm, service_id)
-        return realm, engine, as_server, tgs_server, service, service_id
+        return realm, tee, as_server, tgs_server, service, service_id
 
-    def _register_and_authenticate(self, realm, engine, as_server, tgs_server,
+    def _register_and_authenticate(self, realm, tee, as_server, tgs_server,
                                    service, service_id, now):
         did = make_user_did("carol")
-        fe = FuzzyExtractor()
-        stable = np.random.RandomState(7).randint(0, 2, 256).astype(np.uint8)
-        mask = np.zeros(512, dtype=np.uint8)
-        mask[:256] = 1
-        bio_key, sigma = fe.gen(stable, mask)
-        reg_ts = now
-        import json as _json
-        reg_msg = _json.dumps({"user_id": "carol", "did": did, "ts": reg_ts},
-                              sort_keys=True).encode("utf-8")
-        reg_sig = engine.sign(did, reg_msg)
-        assert as_server.register(did, "carol", fe.key_hash(bio_key), reg_sig, reg_ts, now=now)
+        base = np.random.RandomState(7).randn(512).astype(np.float64)
+        enrolls = [base.copy() for _ in range(5)]
+        reg_msg = json.dumps({"user_id": "carol", "did": did, "ts": now},
+                             sort_keys=True).encode("utf-8")
+        enroll_resp = tee.enroll(did, enrolls, reg_msg)
+        assert enroll_resp["ok"]
+        assert as_server.register(did, "carol",
+                                  enroll_resp["registration_signature"],
+                                  now, now=now)
 
-        client = KerberosClient(did, bio_key, engine)
-        as_req = client.build_as_req(now)
+        client = KerberosClient(did, tee)
+        as_req = client.build_as_req(now, base)
         resp = as_server.authenticate(
-            did, bio_key, as_req["nonce"], as_req["ts"],
-            as_req["signature"], now=now)
+            did, as_req["nonce"], as_req["ts"],
+            as_req["evidence"], now=now)
         assert resp["ok"], resp
         client.store_tgt(resp["tgt"])
         tgs_req = client.build_tgs_req(service_id, now)
@@ -276,89 +492,98 @@ class TestKerberosEnhanced:
         ap_req = client.build_ap_req(service_id, now)
         ver = service.verify_ticket(ap_req["encrypted_st"], service_id, now=now)
         assert ver["ok"], ver
-        return client, fe, stable, bio_key, sigma
+        return client
 
     def test_happy_flow_and_ticket_id(self):
         now_fn = lambda: 1000.0
-        realm, engine, as_server, tgs_server, service, service_id = \
+        realm, tee, as_server, tgs_server, service, service_id = \
             self._realm_and_flow(now_fn)
-        client, fe, stable, bio_key, sigma = self._register_and_authenticate(
-            realm, engine, as_server, tgs_server, service, service_id, now_fn())
-        assert client.tgt is not None and client.tgt["ticket_id"]
-        assert len(client.ticket_ids()) == 2
+        try:
+            client = self._register_and_authenticate(
+                realm, tee, as_server, tgs_server, service, service_id, now_fn())
+            assert client.tgt is not None and client.tgt["ticket_id"]
+            assert len(client.ticket_ids()) == 2
+        finally:
+            tee.stop()
 
     def test_30min_window_rejection(self):
         now_fn = lambda: 1000.0
-        realm, engine, as_server, tgs_server, service, service_id = \
+        realm, tee, as_server, tgs_server, service, service_id = \
             self._realm_and_flow(now_fn)
-        did = make_user_did("dave")
-        fe = FuzzyExtractor()
-        stable = np.random.RandomState(8).randint(0, 2, 256).astype(np.uint8)
-        mask = np.zeros(512, dtype=np.uint8)
-        mask[:256] = 1
-        bio_key, sigma = fe.gen(stable, mask)
-        reg_ts = 1000.0
-        import json as _json
-        reg_msg = _json.dumps({"user_id": "dave", "did": did, "ts": reg_ts},
-                              sort_keys=True).encode("utf-8")
-        reg_sig = engine.sign(did, reg_msg)
-        assert as_server.register(did, "dave", fe.key_hash(bio_key), reg_sig, reg_ts, now=1000.0)
-        client = KerberosClient(did, bio_key, engine)
-        as_req = client.build_as_req(1000.0)
-        resp = as_server.authenticate(
-            did, bio_key, as_req["nonce"], as_req["ts"],
-            as_req["signature"], now=1000.0)
-        assert resp["ok"]
-        client.store_tgt(resp["tgt"])
-        # 超 30min：TGT 过期拒绝
-        tgs_req = client.build_tgs_req(service_id, 1000.0 + TICKET_TTL + 1)
-        tgs_resp = tgs_server.grant_service_ticket(
-            tgs_req["encrypted_tgt"], tgs_req["authenticator"],
-            tgs_req["nonce"], now=1000.0 + TICKET_TTL + 1)
-        assert not tgs_resp["ok"]
-        assert tgs_resp["error"] == "tgt_expired"
-        # AS-REQ 时间戳超窗拒绝
-        as_req2 = client.build_as_req(1000.0)
-        resp2 = as_server.authenticate(
-            did, bio_key, as_req2["nonce"], 1000.0 - MAX_SKEW - 1,
-            as_req2["signature"], now=1000.0)
-        assert not resp2["ok"]
-        assert resp2["error"] == "timestamp_out_of_window"
+        try:
+            did = make_user_did("dave")
+            base = np.random.RandomState(8).randn(512).astype(np.float64)
+            enrolls = [base.copy() for _ in range(5)]
+            reg_msg = json.dumps({"user_id": "dave", "did": did, "ts": 1000.0},
+                                 sort_keys=True).encode("utf-8")
+            enroll_resp = tee.enroll(did, enrolls, reg_msg)
+            assert as_server.register(did, "dave",
+                                      enroll_resp["registration_signature"],
+                                      1000.0, now=1000.0)
+            client = KerberosClient(did, tee)
+            as_req = client.build_as_req(1000.0, base)
+            resp = as_server.authenticate(
+                did, as_req["nonce"], as_req["ts"],
+                as_req["evidence"], now=1000.0)
+            assert resp["ok"]
+            client.store_tgt(resp["tgt"])
+            # 超 30min：TGT 过期拒绝
+            tgs_req = client.build_tgs_req(service_id, 1000.0 + TICKET_TTL + 1)
+            tgs_resp = tgs_server.grant_service_ticket(
+                tgs_req["encrypted_tgt"], tgs_req["authenticator"],
+                tgs_req["nonce"], now=1000.0 + TICKET_TTL + 1)
+            assert not tgs_resp["ok"]
+            assert tgs_resp["error"] == "tgt_expired"
+            # AS-REQ 时间戳超窗拒绝
+            as_req2 = client.build_as_req(1000.0, base)
+            resp2 = as_server.authenticate(
+                did, as_req2["nonce"], 1000.0 - MAX_SKEW - 1,
+                as_req2["evidence"], now=1000.0)
+            assert not resp2["ok"]
+            assert resp2["error"] == "timestamp_out_of_window"
+        finally:
+            tee.stop()
 
     def test_verify_ticket_claims_checker_called(self):
         now_fn = lambda: 2000.0
-        realm, engine, as_server, tgs_server, service, service_id = \
+        realm, tee, as_server, tgs_server, service, service_id = \
             self._realm_and_flow(now_fn)
-        client, fe, stable, bio_key, sigma = self._register_and_authenticate(
-            realm, engine, as_server, tgs_server, service, service_id, now_fn())
-        ap_req = client.build_ap_req(service_id, now_fn())
-        calls = []
-        def checker(claims):
-            calls.append(claims)
-            return True
-        ver = service.verify_ticket(ap_req["encrypted_st"], service_id,
-                                    claims_checker=checker, now=now_fn())
-        assert ver["ok"] and len(calls) == 1
-        assert calls[0]["ticket_id"] == client.service_tickets[list(client.service_tickets)[0]]["ticket_id"]
-        def reject(claims):
-            return False
-        ver2 = service.verify_ticket(ap_req["encrypted_st"], service_id,
-                                     claims_checker=reject, now=now_fn())
-        assert not ver2["ok"] and ver2["error"] == "claims_rejected"
+        try:
+            client = self._register_and_authenticate(
+                realm, tee, as_server, tgs_server, service, service_id, now_fn())
+            ap_req = client.build_ap_req(service_id, now_fn())
+            calls = []
+            def checker(claims):
+                calls.append(claims)
+                return True
+            ver = service.verify_ticket(ap_req["encrypted_st"], service_id,
+                                        claims_checker=checker, now=now_fn())
+            assert ver["ok"] and len(calls) == 1
+            assert calls[0]["ticket_id"] == client.service_tickets[list(client.service_tickets)[0]]["ticket_id"]
+            def reject(claims):
+                return False
+            ver2 = service.verify_ticket(ap_req["encrypted_st"], service_id,
+                                         claims_checker=reject, now=now_fn())
+            assert not ver2["ok"] and ver2["error"] == "claims_rejected"
+        finally:
+            tee.stop()
 
     def test_tampered_ticket_rejected(self):
         now_fn = lambda: 3000.0
-        realm, engine, as_server, tgs_server, service, service_id = \
+        realm, tee, as_server, tgs_server, service, service_id = \
             self._realm_and_flow(now_fn)
-        client, fe, stable, bio_key, sigma = self._register_and_authenticate(
-            realm, engine, as_server, tgs_server, service, service_id, now_fn())
-        ap_req = client.build_ap_req(service_id, now_fn())
-        import base64
-        raw = bytearray(base64.b64decode(ap_req["encrypted_st"]))
-        raw[10] ^= 0xFF
-        ver = service.verify_ticket(base64.b64encode(bytes(raw)).decode(),
-                                    service_id, now=now_fn())
-        assert not ver["ok"]
+        try:
+            client = self._register_and_authenticate(
+                realm, tee, as_server, tgs_server, service, service_id, now_fn())
+            ap_req = client.build_ap_req(service_id, now_fn())
+            import base64
+            raw = bytearray(base64.b64decode(ap_req["encrypted_st"]))
+            raw[10] ^= 0xFF
+            ver = service.verify_ticket(base64.b64encode(bytes(raw)).decode(),
+                                        service_id, now=now_fn())
+            assert not ver["ok"]
+        finally:
+            tee.stop()
 
 
 # ---------------------------------------------------------------------------

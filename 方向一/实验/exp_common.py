@@ -20,10 +20,11 @@ from data_config import (CACHE_DIR, IMPOSTOR_PAIRS, INSIGHTFACE_ROOT, LFW_DIR,
 BIT_THRESHOLD = 0.0
 
 
-def load_cache(backend: str = PRIMARY_BACKEND) -> Dict[str, np.ndarray]:
+def load_cache(backend: str = PRIMARY_BACKEND,
+               cache_dir=CACHE_DIR) -> Dict[str, np.ndarray]:
     """加载特征缓存（相对路径 → 512 维向量）。不存在则报错。"""
     embedder = FaceEmbedder(backend=backend, model_root=INSIGHTFACE_ROOT)
-    cache = EmbeddingCache(str(CACHE_DIR), embedder)
+    cache = EmbeddingCache(str(cache_dir), embedder)
     if not cache.has_cache():
         raise SystemExit(
             f"特征缓存缺失：{cache._data_path}。"
@@ -137,3 +138,104 @@ def summarize_attempts(rows: List[Dict]) -> Dict:
 
 def log(msg: str) -> None:
     print(f"[exp] {msg}", flush=True)
+
+
+def split_enroll_probe(embs: Dict[str, np.ndarray], person: str,
+                       enroll_n: int = 5) -> Optional[Dict]:
+    """正式划分：前 enroll_n 张登记，第 enroll_n+1 张及以后为独立 probe。
+
+    不足 enroll_n+1 张的人返回 None（调用方跳过），不允许回退到登记图像。
+    返回的 paths 为缓存 key（绝对路径）；enroll/probe 集合强制互斥。
+    """
+    ps = sorted(p for p in embs if Path(p).parent.name == person)
+    if len(ps) < enroll_n + 1:
+        return None
+    enroll_paths = ps[:enroll_n]
+    probe_paths = ps[enroll_n:]
+    assert set(enroll_paths).isdisjoint(probe_paths), \
+        "enroll/probe 图像集合重叠（数据泄漏）"
+    return {
+        "enroll_paths": enroll_paths,
+        "enroll_embs": [embs[p] for p in enroll_paths],
+        "probe_paths": probe_paths,
+        "probe_embs": [embs[p] for p in probe_paths],
+    }
+
+
+def inject_rs_symbol_errors(bits, theta: int, seed: int) -> np.ndarray:
+    """在比特序列中注入 theta 个 RS 符号（字节）错误。
+
+    将比特序列按 8 位分组为符号，无放回选择 theta 个符号位置，每个位置
+    异或一个 1~255 非零字节掩码，保证 byte_error_count(original, perturbed)
+    == theta（要求 0 <= theta <= 符号数）。
+    """
+    from core.stable_bits import byte_error_count
+    bits = np.asarray(bits, dtype=np.uint8).ravel()
+    if bits.size % 8 != 0:
+        raise ValueError("bits length must be a multiple of 8")
+    n_sym = bits.size // 8
+    theta = int(theta)
+    if theta < 0 or theta > n_sym:
+        raise ValueError(f"theta {theta} out of range [0, {n_sym}]")
+    rng = np.random.RandomState(seed)
+    sym_idx = rng.choice(n_sym, size=theta, replace=False)
+    out = bits.copy()
+    for si in sym_idx:
+        mask = int(rng.randint(1, 256))  # 1~255 非零字节掩码
+        mask_bits = np.unpackbits(np.array([mask], dtype=np.uint8)).astype(np.uint8)
+        out[si * 8:(si + 1) * 8] ^= mask_bits
+    assert byte_error_count(bits, out) == theta, \
+        f"inject_rs_symbol_errors 未达到 byte_error_count=={theta}"
+    return out
+
+
+def make_run_dir(results_dir, prefix: str = "formal_v2"):
+    """创建隔离输出目录 结果/formal_v2_<run_id>/（微秒 run_id，禁止覆盖）。"""
+    import time as _time
+    run_id = (_time.strftime("%Y%m%d_%H%M%S")
+              + f"_{_time.time_ns() % 1000000000:09d}")
+    out = Path(results_dir) / f"{prefix}_{run_id}"
+    out.mkdir(parents=True, exist_ok=False)
+    return out
+
+
+def write_manifest(out_dir, cache_dir, implementation: str,
+                   split_policy: str, model: str = "insightface/buffalo_l",
+                   seed: int = 20260817):
+    """写 manifest.json（git_commit/seed/cache_sha256/环境等）。"""
+    import hashlib
+    import json
+    import subprocess
+    import time as _time
+
+    def _git_commit() -> str:
+        try:
+            cwd = str(Path(__file__).resolve().parent.parent.parent)
+            return subprocess.run(
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                cwd=cwd).stdout.strip()
+        except Exception:
+            return "unknown"
+
+    npy = Path(cache_dir) / "embs_insightface.npy"
+    sha = ""
+    if npy.exists():
+        h = hashlib.sha256()
+        with open(npy, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        sha = h.hexdigest()
+
+    manifest = {
+        "git_commit": _git_commit(),
+        "seed": seed,
+        "cache_path": str(cache_dir),
+        "cache_sha256": sha,
+        "split_policy": split_policy,
+        "model": model,
+        "implementation": implementation,
+        "start_time": _time.strftime("%Y-%m-%d %H:%M:%S"),
+        "environment": "LFW funneled",
+    }
+    (Path(out_dir) / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

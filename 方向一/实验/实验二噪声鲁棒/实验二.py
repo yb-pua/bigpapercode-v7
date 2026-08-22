@@ -21,9 +21,11 @@ from core.face_embedder import FaceEmbedder
 from core.fuzzy_extractor import FuzzyExtractor
 from core.noise_injector import INTENSITY_GRID, NOISE_TYPES, noise_is_available
 from exp_common import (cohort_persons, enroll_from_images, load_cache, log,
-                        person_embs, quantize, similarity)
-from data_config import (FIGURES_DIR, INSIGHTFACE_ROOT, RESULTS_DIR,
-                         VOTE_COHORT_MIN_IMAGES, VOTE_ENROLL_IMAGES)
+                        make_run_dir, quantize, similarity, split_enroll_probe,
+                        write_manifest)
+from data_config import (FIGURES_DIR, FORMAL_V2_CACHE_DIR, INSIGHTFACE_ROOT,
+                         RESULTS_DIR, VOTE_PROBE_MIN_IMAGES,
+                         VOTE_ENROLL_IMAGES)
 RESULTS_DIR = Path(__file__).resolve().parent / "结果"
 FIGURES_DIR = RESULTS_DIR / "figures"
 AUDIT_PATH = RESULTS_DIR / "auth_audit.jsonl"
@@ -50,8 +52,8 @@ def main():
     from data_config import LFW_DIR
     loader = LFWLoader(LFW_DIR)
     fe = FuzzyExtractor()
-    embs = load_cache()
-    cohort = cohort_persons(embs, VOTE_COHORT_MIN_IMAGES)
+    embs = load_cache(cache_dir=FORMAL_V2_CACHE_DIR)
+    cohort = cohort_persons(embs, VOTE_PROBE_MIN_IMAGES)
     if max_persons:
         cohort = cohort[:max_persons]
     log(f"cohort: {len(cohort)} persons")
@@ -65,12 +67,13 @@ def main():
         jobs = []   # (person, noise_type, intensity, seed, img)
         meta = []
         for person in chunk:
-            e = person_embs(embs, person, max_n=VOTE_ENROLL_IMAGES)
-            probe_abs = sorted(
-                p for p in embs if Path(p).parent.name == person)[0]
-            probe_path = f"{person}/{Path(probe_abs).name}"
-            orig_emb = e[0]
-            W, mask, bio_key, sigma = enroll_from_images(e, fe)
+            sp = split_enroll_probe(embs, person, enroll_n=VOTE_ENROLL_IMAGES)
+            if sp is None:
+                continue
+            enroll_embs = sp["enroll_embs"]
+            probe_path = f"{person}/{Path(sp['probe_paths'][0]).name}"
+            orig_emb = sp["probe_embs"][0]   # 第 6 张独立 probe 原始特征
+            W, mask, bio_key, sigma = enroll_from_images(enroll_embs, fe)
             kh = fe.key_hash(bio_key)
             img = loader.load_image(probe_path)
             if img is None:
@@ -81,15 +84,16 @@ def main():
                     jobs.append(apply_noise(img, noise_type, intensity,
                                             seed=seed))
                     meta.append((person, noise_type, intensity, orig_emb,
-                                 mask, bio_key, sigma, kh))
+                                 probe_path, mask, bio_key, sigma, kh))
         emb_list = embedder.extract_batch_from_arrays(jobs, workers=5)
-        for (person, noise_type, intensity, orig_emb, mask, bio_key,
-             sigma, kh), emb in zip(meta, emb_list):
+        for (person, noise_type, intensity, orig_emb, probe_path, mask,
+             bio_key, sigma, kh), emb in zip(meta, emb_list):
             if emb is None:
                 rows.append({
                     "person": person, "noise_type": noise_type,
                     "intensity": intensity, "ok": 0,
-                    "similarity": float("nan"), "extract_failed": 1})
+                    "similarity": float("nan"), "extract_failed": 1,
+                    "probe_path": probe_path})
                 continue
             pb = quantize(emb)[mask == 1]
             out = fe.rep(pb, sigma, key_hash=kh)
@@ -97,10 +101,12 @@ def main():
                 "person": person, "noise_type": noise_type,
                 "intensity": intensity, "ok": int(out == bio_key),
                 "similarity": similarity(orig_emb, emb),
-                "extract_failed": 0})
+                "extract_failed": 0,
+                "probe_path": probe_path})
         log(f"A2: chunk {c0}-{c0 + len(chunk)} done "
             f"({len(rows)} rows, {time.time() - t0_all:.0f}s)")
-    write_csv(RESULTS_DIR / "expA2_noise_krr.csv", rows)
+    out_dir = make_run_dir(RESULTS_DIR)
+    write_csv(out_dir / "attempts.csv", rows)
 
     summary = []
     for noise_type in NOISE_TYPES:
@@ -120,14 +126,11 @@ def main():
             "sim_mean": float(np.mean(sims)) if sims else float("nan"),
             "krr_worst": worst,
         })
-    write_csv(RESULTS_DIR / "expA2_summary.csv", summary)
-    csv_meta(RESULTS_DIR / "expA2_summary.csv", {
-        "seed": PERTURB_SEED,
-        "noise_types": ",".join(NOISE_TYPES),
-        "intensity_grid": str(INTENSITY_GRID),
-        "cohort_n": len(cohort),
-    })
-    log("A2 done -> results/expA2_*.csv")
+    write_csv(out_dir / "summary.csv", summary)
+    write_manifest(out_dir, FORMAL_V2_CACHE_DIR,
+                   "reedsolo" if fe.helper_uses_reedsolo() else "simulated",
+                   "enroll=5, probe=第6张独立")
+    log(f"A2 done -> {out_dir.relative_to(RESULTS_DIR)}")
 
 
 if __name__ == "__main__":

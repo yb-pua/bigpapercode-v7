@@ -23,10 +23,12 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from .common import rand_bytes, sm3, sm4_cbc_decrypt, sm4_cbc_encrypt
 from .audit_logger import AuditLogger
+from .simulated_bio_tee import AUTH_METHOD, SCHEMA_VERSION
 
 TICKET_TTL = 1800.0          # 票据有效期 / 时间戳窗口：30 分钟
 MAX_SKEW = 1800.0            # 时间戳窗口：30 分钟
 REALM = "REALM"
+AS_PURPOSE = "kerberos_as"   # AS 仅接受此 purpose（跨协议隔离）
 
 
 def _b64e(data: bytes) -> str:
@@ -127,32 +129,38 @@ class KerberosRealm:
 
 
 class AS:
-    """认证服务：登记（SM9 签名 ID+DID+ts）、AS-REQ 前置验签 + 生物认证。"""
+    """认证服务：登记（SM9 签名 ID+DID+ts）、AS-REQ 验证（证明 + SM9 前置验签）。
 
-    def __init__(self, realm: KerberosRealm, sm9_engine, tgs_id: str = "tgs@REALM"):
+    生物门控签名由 SimulatedBioTEE 完成；AS 仅通过 verifier 公开验签，
+    不持有、不保存 sigma/mask/key_hash/BioKey/私钥。
+    """
+
+    def __init__(self, realm: KerberosRealm, verifier, tgs_id: str = "tgs@REALM"):
         self.realm = realm
-        self.sm9 = sm9_engine
+        self.verifier = verifier
         self.tgs_id = tgs_id
-        self.registrations: Dict[str, dict] = {}       # did → 登记记录
+        self.registrations: Dict[str, dict] = {}       # did → {user_id, reg_ts}
         self.used_nonces: Dict[str, float] = {}        # 重放防护
 
     # ------------------------------------------------------------------
     # 注册
     # ------------------------------------------------------------------
-    def register(self, did: str, user_id: str, key_hash: bytes,
+    def register(self, did: str, user_id: str,
                  reg_signature: bytes, reg_ts: float, now: Optional[float] = None) -> bool:
-        """登记：验 SM9 签名 (user_id || did || ts) + 时间戳窗口。"""
+        """登记：验 SM9 签名 (user_id || did || ts) + 时间戳窗口。
+
+        不保存 key_hash/sigma/bio_key/mask/私钥（生物门控在 TEE 内）。
+        """
         now = now if now is not None else self.realm.clock.now()
         if abs(now - reg_ts) > MAX_SKEW:
             self.realm.audit("register", "rejected_ts", did)
             return False
         message = _pack({"user_id": user_id, "did": did, "ts": reg_ts})
-        if not self.sm9.verify(did, message, reg_signature):
+        if not self.verifier.verify(did, message, reg_signature):
             self.realm.audit("register", "rejected_sig", did)
             return False
         self.registrations[did] = {
             "user_id": user_id,
-            "key_hash": key_hash,
             "reg_ts": reg_ts,
         }
         self.realm.audit("register", "success", did)
@@ -164,18 +172,20 @@ class AS:
     # ------------------------------------------------------------------
     # AS-REQ
     # ------------------------------------------------------------------
-    def authenticate(self, did: str, bio_key: bytes, nonce: bytes,
-                     ts: float, sm9_signature: bytes,
-                     now: Optional[float] = None) -> dict:
+    def authenticate(self, did: str, nonce: bytes, ts: float,
+                     evidence: dict, now: Optional[float] = None) -> dict:
         """AS-REQ 处理：
-            1) 前置验签：SM9 签名 (did || ts || nonce) 替代口令
+            1) DID 已登记
             2) 时间戳窗口 30min
-            3) 重放防护（nonce）
-            4) 生物特征：SM3(bio_key) == key_hash
-            5) 签发 TGT（SM4 载荷，含 ticket_id）
+            3) nonce 防重放
+            4) AuthEvidence v1：schema/user_did/nonce/context_digest 一致性
+            5) 模拟证明有效（委托子进程）
+            6) SM9 签名有效（verifier 公开验签，绑定 purpose+context_digest）
+            7) 签发 TGT（flags 传播 auth_method/evidence_id/measurement）
+
+        不接收、不校验 bio_key（生物门控已在 SimulatedBioTEE 内完成）。
         """
         now = now if now is not None else self.realm.clock.now()
-        did = did
         reg = self.registrations.get(did)
         if reg is None:
             self.realm.audit("as_req", "rejected_unknown", did)
@@ -183,23 +193,61 @@ class AS:
         if abs(now - ts) > MAX_SKEW:
             self.realm.audit("as_req", "rejected_ts", did)
             return {"ok": False, "error": "timestamp_out_of_window"}
-        message = _pack({"did": did, "ts": ts, "nonce": _b64e(nonce)})
-        if not self.sm9.verify(did, message, sm9_signature):
-            self.realm.audit("as_req", "rejected_sig", did)
-            return {"ok": False, "error": "sm9_signature_invalid"}
+        context = _pack({"did": did, "ts": ts, "nonce": _b64e(nonce)})
+        context_digest = sm3(context).hex()
         nonce_key = f"{did}:{_b64e(nonce)}"
         if nonce_key in self.used_nonces and now - self.used_nonces[nonce_key] < MAX_SKEW:
             self.realm.audit("as_req", "rejected_replay", did)
             return {"ok": False, "error": "replay_detected"}
+        if not isinstance(evidence, dict) or evidence.get("purpose") != AS_PURPOSE:
+            self.realm.audit("as_req", "rejected_purpose", did)
+            return {"ok": False, "error": "purpose_mismatch"}
+        if not self._evidence_valid(evidence, did, nonce, ts, context_digest):
+            self.realm.audit("as_req", "rejected_attestation", did)
+            return {"ok": False, "error": "attestation_invalid"}
+        payload = _pack({"did": did, "ts": ts, "nonce": _b64e(nonce),
+                         "purpose": evidence["purpose"],
+                         "context_digest": context_digest})
+        signature = _b64d(evidence["signature"])
+        if not self.verifier.verify(did, payload, signature):
+            self.realm.audit("as_req", "rejected_sig", did)
+            return {"ok": False, "error": "sm9_signature_invalid"}
         self.used_nonces[nonce_key] = now
-        if sm3(bio_key) != reg["key_hash"]:
-            self.realm.audit("as_req", "rejected_bio", did)
-            return {"ok": False, "error": "bio_key_mismatch"}
-        tgt = self._issue_ticket(did, self.tgs_id, now)
+        tgt = self._issue_ticket(
+            did, self.tgs_id, now,
+            flags={"auth_method": evidence.get("auth_method", AUTH_METHOD),
+                   "evidence_id": evidence.get("evidence_id"),
+                   "measurement": (evidence.get("attestation") or {}).get("measurement")})
         self.realm.audit("as_req", "success", did, ticket_id=tgt["ticket_id"])
         return {"ok": True, "tgt": tgt, "session_key": tgt["session_key"]}
 
-    def _issue_ticket(self, client_did: str, service_id: str, now: float) -> dict:
+    def _evidence_valid(self, evidence: dict, did: str, nonce: bytes,
+                        ts: float, context_digest: str) -> bool:
+        """验 AuthEvidence：schema/auth_method/user_did/nonce/issued_at/
+        context_digest 一致性 + 模拟证明（委托子进程）。"""
+        if not isinstance(evidence, dict):
+            return False
+        if evidence.get("schema_version") != SCHEMA_VERSION:
+            return False
+        if evidence.get("auth_method") != AUTH_METHOD:
+            return False
+        if evidence.get("user_did") != did:
+            return False
+        if evidence.get("nonce") != _b64e(nonce):
+            return False
+        if evidence.get("issued_at") != ts:
+            return False
+        if evidence.get("context_digest") != context_digest:
+            return False
+        if not self.verifier.verify_attestation(evidence):
+            return False
+        return True
+
+    def _issue_ticket(self, client_did: str, service_id: str, now: float,
+                      flags: Optional[dict] = None) -> dict:
+        f = {"realm": REALM, "auth_method": AUTH_METHOD}
+        if flags:
+            f.update(flags)
         ticket = Ticket(
             ticket_id=new_ticket_id(),
             client_did=client_did,
@@ -208,7 +256,7 @@ class AS:
             issued_time=now,
             validity_period=TICKET_TTL,
             ticket_type="tgt" if service_id.startswith("tgs") else "service",
-            flags={"realm": REALM, "auth_method": "sm9_bio"},
+            flags=f,
         )
         return self._seal(ticket)
 
@@ -379,24 +427,25 @@ class Service:
 
 
 class KerberosClient:
-    """客户端：构造 AS-REQ（SM9 前置验签）、TGS-REQ、AP-REQ。"""
+    """客户端：构造 AS-REQ（经生物门控 TEE 签名）、TGS-REQ、AP-REQ。"""
 
-    def __init__(self, did: str, bio_key: bytes, sm9_engine):
+    def __init__(self, did: str, tee):
         self.did = did
-        self.bio_key = bio_key
-        self.sm9 = sm9_engine
+        self.tee = tee
         self.tgt: Optional[dict] = None
         self.tgt_session_key: Optional[bytes] = None
         self.service_tickets: Dict[str, dict] = {}
 
     # ------------------------------------------------------------------
-    def build_as_req(self, now: float) -> dict:
+    def build_as_req(self, now: float, probe_embedding,
+                     purpose: str = "kerberos_as") -> dict:
         nonce = rand_bytes(16, f"as_nonce_{self.did}")
         ts = now
-        message = _pack({"did": self.did, "ts": ts, "nonce": _b64e(nonce)})
-        signature = self.sm9.sign(self.did, message)
+        context = _pack({"did": self.did, "ts": ts, "nonce": _b64e(nonce)})
+        auth = self.tee.authenticate_and_sign(self.did, probe_embedding,
+                                              context, nonce, ts, purpose=purpose)
         return {"did": self.did, "ts": ts, "nonce": nonce,
-                "signature": signature}
+                "evidence": auth["evidence"]}
 
     def build_tgs_req(self, service_id: str, now: float) -> dict:
         if self.tgt is None:

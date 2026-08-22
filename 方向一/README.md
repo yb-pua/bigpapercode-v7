@@ -16,8 +16,8 @@ LFW + InsightFace 真实数据、gmalg 国密实现完成端到端实验。
    码字⊕W_ext，**只存 σ 不存明文特征**，每次 Gen 注入随机盐使同人重登记
    σ 不可链接（A5-p02 实测不可链接）。对比同类生物密钥方案（Dodis 等模糊提取
    框架、Juels 模糊承诺），本方案把"密钥恢复率"从理论下界做到实测 100%。
-2. **前置验签替代口令的 Kerberos 增强**：AS 注册/认证以 SM9 签名（生物密钥
-   派生私钥）替代口令，票据载荷 SM4-CBC 密封、30min 时间窗、nonce 防重放、
+2. **前置验签替代口令的 Kerberos 增强**：AS 注册/认证以 SM9 签名（KGC 按 DID
+   派生私钥，BioKey 门控签名）替代口令，票据载荷 SM4-CBC 密封、30min 时间窗、nonce 防重放、
    ticket_id 全链审计——Kerberos 安全语义 + 国密密码套件 + 无口令。
 3. **模拟 TEE 持有 KGC 主密钥**：多进程隔离，审计日志全程不含主密钥材料
    （A3 实测 msk_in_log=False）。
@@ -42,7 +42,7 @@ LFW + InsightFace 真实数据、gmalg 国密实现完成端到端实验。
 
 ```
 生物图像 → InsightFace 512 维嵌入 → 稳定位筛选 → 模糊提取器 gen/rep
-        → bio_key=SM3(W) → SM9 派生私钥(生物 DID) → Kerberos AS/TGS/Service
+        → bio_key=SM3(W)（门控）→ SM9 私钥(KGC 按 DID 派生) → Kerberos AS/TGS/Service
         → SM4-CBC 票据 + 30min 窗口 + nonce 防重放 + 熔断 + 模拟 TEE 审计
 ```
 
