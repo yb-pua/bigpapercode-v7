@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.audit_logger import AuditLogger
 from core.claims_checker import ClaimsChecker
-from core.common import rand_bytes
+from core.common import rand_bytes, sm3
 from core.did import make_user_did
 from core.kdc import KDC
 from core.mcp_agent import MCPAgent, env_id
@@ -23,6 +23,7 @@ from core.mcp_protocol import (HEADER_ST_DATA, HEADER_ST_NET, build_tools_call,
 from core.mcp_server import MCPServer
 from core.noauth_baseline import NoAuthBaseline
 from core.oauth_baseline import OAuthBaseline
+from core.p2p_handoff import issue_simulated_p2p_session
 from core.sm9_engine import SM9Engine
 from core.st_ticket import (REALM, MAX_SKEW, STService, TICKET_TTL,
                             netperm_defaults)
@@ -44,10 +45,12 @@ def world():
                      user_did=user_did)
     assert agent.register()
     claims = {"tools": ["file.read", "db.query"], "actions": ["read", "execute"]}
-    agent.obtain_tickets(SERVICE, NET_PERM, claims)
+    sess = issue_simulated_p2p_session(kdc, agent.agent_did, user_did,
+                                       label="test-world")
+    agent.obtain_tickets(SERVICE, NET_PERM, claims, sess)
     st = STService(sm9, kdc.kdc_did)
     checker = ClaimsChecker(tools=TOOLS, actions=ACTIONS)
-    server = MCPServer(sm9, st, SERVICE, claims_checker=checker)
+    server = MCPServer(sm9, st, SERVICE, kdc=kdc, claims_checker=checker)
     gw = MCPGateway(sm9, st, SERVICE)
     return dict(sm9=sm9, kdc=kdc, agent=agent, server=server, gw=gw,
                 claims=claims)
@@ -175,6 +178,64 @@ def test_stolen_st_wrong_private_key_rejected(world):
     assert "error" in resp
 
 
+def test_unregistered_agent_rejected(world):
+    """未登记 Agent 不能通过 issue_dual_access 获得双 ST。"""
+    sm9, kdc = world["sm9"], world["kdc"]
+    rogue = MCPAgent("docker8888888888888888", "user1", sm9, kdc)
+    # 未 register()
+    sess = issue_simulated_p2p_session(
+        kdc, rogue.agent_did, make_user_did("user1"),
+        label="test-unregistered")
+    with pytest.raises(RuntimeError):
+        rogue.obtain_tickets(SERVICE, NET_PERM, world["claims"], sess)
+
+
+def test_user2_collude_user1_agent_rejected(world):
+    """用户2 替用户1 的合法 Agent 联签 → 跨字段 user_did 不一致拒绝。"""
+    agent = world["agent"]
+    user2_did = make_user_did("user2")
+    cmd = {"tool": "file.read", "action": "read", "args": {}}
+    ts = time.time()
+    req_id = rand_bytes(8, "collude").hex()
+    ctx = {"session": "s"}
+    sig_a, sig_u = agent.sign_chain(cmd, ts, req_id, ctx)
+    msg = build_tools_call(req_id, "file.read", {}, extra={
+        "cmd": cmd, "ts": ts, "ctx": ctx,
+        "sig_agent": sig_a.hex(), "sig_user": sig_u.hex(),
+        "agent_did": agent.agent_did, "user_did": user2_did,   # 篡改 user_did
+    })
+    headers = inject_tickets(msg, agent.st_data, agent.st_net)
+    resp = world["server"].handle_call(msg, headers)
+    assert "error" in resp
+    assert "user_device_mismatch" in resp["error"]["message"]
+
+
+def test_other_agent_session_credential_rejected(world):
+    """合法但属于其他 Agent 的方向二会话凭证不能签发本 Agent 双 ST。"""
+    sm9, kdc, agent = world["sm9"], world["kdc"], world["agent"]
+    other = MCPAgent("docker7777777777777777", "user1", sm9, kdc)
+    assert other.register()
+    other_session = issue_simulated_p2p_session(
+        kdc, other.agent_did, other.user_did, label="test-other-session")
+    with pytest.raises(RuntimeError):
+        agent.obtain_tickets(SERVICE, NET_PERM, world["claims"], other_session)
+
+
+def test_dual_st_pair_mix_rejected(world):
+    """同一 Agent 两次签发所得 ST_net/ST_data 不能跨 pair_id 混用。"""
+    kdc, agent = world["kdc"], world["agent"]
+    session = issue_simulated_p2p_session(
+        kdc, agent.agent_did, agent.user_did, label="test-pair-mix")
+    agent.obtain_tickets(SERVICE, NET_PERM, world["claims"], session)
+    st_net_first = agent.st_net
+    agent.obtain_tickets(SERVICE, NET_PERM, world["claims"], session)
+    agent.st_net = st_net_first
+    msg, headers = make_req(world)
+    resp = world["server"].handle_call(msg, headers)
+    assert "error" in resp
+    assert "pair_mismatch" in resp["error"]["message"]
+
+
 # ----------------------------------------------------------------------
 # 双签名链（验收 4）
 # ----------------------------------------------------------------------
@@ -185,10 +246,13 @@ def test_chain_order_correct(world):
     ts, req_id, ctx = time.time(), "r1", {"session": "s"}
     sig_a, sig_u = agent.sign_chain(cmd, ts, req_id, ctx)
     assert len(sig_a) == 97 and len(sig_u) == 97
-    # 链序语义：σ_user 的输入含 σ_agent（先设备后用户）
-    from core.common import sm3
+    # 链序语义：σ_agent 绑定 Cmd‖ts‖req_id‖双票ID‖双DID；σ_user 输入含 σ_agent
     cmd_b = json.dumps(cmd, sort_keys=True).encode()
-    m1 = sm3(cmd_b + int(ts).to_bytes(8, "big") + req_id.encode())
+    st_net_id = agent.st_net["ticket_id"]
+    st_data_id = agent.st_data["ticket_id"]
+    m1 = sm3(cmd_b + int(ts).to_bytes(8, "big") + req_id.encode()
+             + st_net_id.encode() + st_data_id.encode()
+             + agent.agent_did.encode() + agent.user_did.encode())
     assert agent.sm9.verify(agent.agent_did, m1, sig_a)
     m2 = sm3(cmd_b + sig_a + json.dumps(ctx, sort_keys=True).encode())
     assert agent.sm9.verify(agent.user_did, m2, sig_u)
@@ -292,7 +356,7 @@ def test_audit_chain_ticket_id(world):
     logger = AuditLogger("/tmp/exp3_audit_test.log")
     logger.clear()
     st = STService(world["sm9"], world["kdc"].kdc_did, audit_logger=logger)
-    server = MCPServer(world["sm9"], st, SERVICE,
+    server = MCPServer(world["sm9"], st, SERVICE, kdc=world["kdc"],
                        claims_checker=ClaimsChecker(tools=TOOLS,
                                                     actions=ACTIONS),
                        audit_logger=logger)

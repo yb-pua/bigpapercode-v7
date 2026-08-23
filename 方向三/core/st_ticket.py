@@ -77,10 +77,15 @@ class STService:
     def issue_dual_ticket(self, principal: str, service: str, st_kind: str,
                           perm: dict, caddr: str = "",
                           times: Optional[dict] = None,
-                          ttl: float = TICKET_TTL) -> dict:
+                          ttl: float = TICKET_TTL,
+                          pair_id: str = "", user_did: str = "",
+                          parent_ticket_id: str = "") -> dict:
         """签发双 ST（方向三）：st_kind="net"→perm=NetPerm（组网权限）；
         st_kind="data"→perm=claims={tools, actions}（数据/协同权限）。
-        字段与 issue_ticket 兼容，另加 st_kind。"""
+
+        pair_id/user_did/parent_ticket_id 由 KDC 原子签发时注入，两张票共同
+        绑定同一次签发关系与方向二会话凭证的审计链（parent_ticket_id）。
+        """
         import copy
         perm = copy.deepcopy(perm)
         now = self.now()
@@ -89,6 +94,10 @@ class STService:
         payload = {
             "realm": REALM,
             "principal": principal,
+            "agent_did": principal,
+            "pair_id": pair_id,
+            "user_did": user_did,
+            "parent_ticket_id": parent_ticket_id,
             "sname": service,
             "st_kind": st_kind,
             "perm": perm,
@@ -125,6 +134,8 @@ class STService:
             return {"ok": False, "error": "service_mismatch"}
         if st_kind is not None and ticket["st_kind"] != st_kind:
             return {"ok": False, "error": "st_kind_mismatch"}
+        if ticket.get("agent_did", ticket["principal"]) != ticket["principal"]:
+            return {"ok": False, "error": "did_mismatch"}
         tid = ticket["ticket_id"]
         if replay_cache is not None:
             if tid in replay_cache and now - replay_cache[tid] < TICKET_TTL:
@@ -137,6 +148,10 @@ class STService:
                     return {"ok": False, "error": "perm_out_of_scope"}
         claims = {
             "client_did": ticket["principal"],
+            "agent_did": ticket.get("agent_did", ticket["principal"]),
+            "user_did": ticket.get("user_did", ""),
+            "pair_id": ticket.get("pair_id", ""),
+            "parent_ticket_id": ticket.get("parent_ticket_id", ""),
             "ticket_id": tid,
             "service_id": ticket["sname"],
             "st_kind": ticket["st_kind"],

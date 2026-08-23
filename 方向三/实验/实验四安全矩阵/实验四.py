@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core.common import SEED, csv_meta, write_csv
+from 实验.run_support import start_run, write_manifest
 
 RESULTS = Path(__file__).resolve().parent / "结果"
 
@@ -51,7 +52,7 @@ def build_matrix() -> list:
     M += [
         ("caller_binding", "kerberos_std", 0, "仅认证器绑定客户端地址"),
         ("caller_binding", "kerberos_sm", 0, "仅认证器绑定客户端地址"),
-        ("caller_binding", "oauth21", 0, "授权态缓存复用，token 与调用者不绑定（expC3_attack_matrix: confusion 0.00）"),
+        ("caller_binding", "oauth21", 0, "本实验 bearer-token/授权态缓存基线与调用者不绑定（C3）"),
         ("caller_binding", "ours", 1, "每请求双签名链认证器（expC3_attack_matrix: confusion 1.00）"),
     ]
     # 5 审计归因
@@ -66,14 +67,14 @@ def build_matrix() -> list:
         ("revocation", "kerberos_std", 1, "KDC 可吊销/短时票据"),
         ("revocation", "kerberos_sm", 1, "KDC 可吊销/短时票据"),
         ("revocation", "oauth21", 1, "token 撤销端点（oauth_baseline.revoke）"),
-        ("revocation", "ours", 1, "ST 短时（30min）+单次+可吊销（st_ticket）"),
+        ("revocation", "ours", 1, "ST 30min 短周期+单次使用；本实验未实现在线 CRL"),
     ]
     # 7 国产合规
     M += [
         ("national_crypto", "kerberos_std", 0, "默认 AES/非国密"),
         ("national_crypto", "kerberos_sm", 1, "SM9/SM3/SM4 全链"),
         ("national_crypto", "oauth21", 0, "TLS 默认套件非国密"),
-        ("national_crypto", "ours", 1, "SM9/SM3/SM4 全链（gmalg）"),
+        ("national_crypto", "ours", 1, "MCP 认证层 SM9/SM3；数据通道继承方向二 SM4"),
     ]
     rows = []
     for dim, scheme, value, basis in M:
@@ -84,11 +85,13 @@ def build_matrix() -> list:
 
 def main():
     debug = "--debug" in sys.argv
+    quick = "--quick" in sys.argv
+    out_dir, run_state = start_run(RESULTS)
     rows = build_matrix()
-    write_csv(RESULTS / "expC4_security_matrix.csv", rows)
-    csv_meta(RESULTS / "expC4_security_matrix.csv", {"seed": SEED,
-                                                     "dimensions": 7,
-                                                     "schemes": 4})
+    write_csv(out_dir / "expC4_security_matrix.csv", rows)
+    csv_meta(out_dir / "expC4_security_matrix.csv", {
+        "seed": SEED, "mode": "quick" if quick else "formal",
+        "dimensions": 7, "schemes": 4})
     if debug:
         for r in rows:
             print(f"  {r['dimension']:<20} {r['scheme']:<14} "
@@ -97,6 +100,13 @@ def main():
         print(f"  expC4_security_matrix.csv written: "
               f"{len(rows)} rows ({len(DIMENSIONS)} dims x "
               f"{len(SCHEMES)} schemes)")
+    write_manifest(
+        out_dir, run_state, mode="quick" if quick else "formal", seed=SEED,
+        parameters={"dimensions": 7, "schemes": 4},
+        simulated_components=["Evidence-derived static security matrix",
+                              "OAuth bearer-token baseline"],
+        measurement_mode="evidence_matrix",
+    )
 
 
 if __name__ == "__main__":

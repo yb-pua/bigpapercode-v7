@@ -58,20 +58,30 @@ class MCPAgent:
         return self.kdc.register_device(self.agent_did, self.user_did)
 
     def obtain_tickets(self, service: str, netperm: dict,
-                       claims: dict) -> Tuple[dict, dict]:
-        """申请双 ST：ST_net（组网）+ ST_data（claims 数据权限）。"""
-        self.st_net = self.kdc.issue_dual_ticket(
-            self.agent_did, service, "net", netperm)
-        self.st_data = self.kdc.issue_dual_ticket(
-            self.agent_did, service, "data", {"claims": claims})
+                       claims: dict, session_credential: dict) -> Tuple[dict, dict]:
+        """申请双 ST：经 KDC 原子 issue_dual_access（验登记+绑定+会话凭证）。"""
+        access = self.kdc.issue_dual_access(
+            self.agent_did, self.user_did, session_credential, service,
+            netperm, claims)
+        if access is None:
+            raise RuntimeError("issue_dual_access denied: unregistered agent / "
+                               "unbound user / invalid session credential")
+        self.st_net = access["st_net"]
+        self.st_data = access["st_data"]
         return self.st_net, self.st_data
 
     # ------------------------------------------------------------------
     def sign_chain(self, cmd: dict, ts: float, req_id: str,
                    ctx: dict) -> Tuple[bytes, bytes]:
-        """双签名链：先设备后用户。返回 (σ_agent, σ_user)。"""
+        """双签名链：先设备后用户。
+        σ_agent = Sign(设备sk, SM3(Cmd‖ts‖req_id‖st_net_id‖st_data_id‖agent_did‖user_did))
+        σ_user  = Sign(生物sk, SM3(Cmd‖σ_agent‖ctx))。"""
         cmd_b = json.dumps(cmd, sort_keys=True).encode()
-        m1 = sm3(cmd_b + int(ts).to_bytes(8, "big") + req_id.encode())
+        st_net_id = (self.st_net or {}).get("ticket_id", "")
+        st_data_id = (self.st_data or {}).get("ticket_id", "")
+        m1 = sm3(cmd_b + int(ts).to_bytes(8, "big") + req_id.encode()
+                 + st_net_id.encode() + st_data_id.encode()
+                 + self.agent_did.encode() + self.user_did.encode())
         sig_agent = self.sm9.sign(self.agent_did, m1)
         m2 = sm3(cmd_b + sig_agent + json.dumps(ctx, sort_keys=True).encode())
         sig_user = self.sm9.sign(self.user_did, m2)

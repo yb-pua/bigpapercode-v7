@@ -10,7 +10,7 @@ KDC（方向二）：设备登记（含绑定校验）/ 授权签发 / ST 签发
 from typing import Callable, Dict, List, Optional
 
 from .audit_logger import AuditLogger
-from .authorization import issue_auth, proxy_delegate
+from .authorization import issue_auth, proxy_delegate, verify_session_credential
 from .binding_table import BindingTable
 from .common import rand_bytes
 from .did import make_device_did
@@ -77,9 +77,47 @@ class KDC:
                           perm: dict, caddr: str = "",
                           times: Optional[dict] = None,
                           ttl: float = TICKET_TTL) -> dict:
-        """方向三：双 ST 签发（st_kind="net"/"data"）。"""
+        """低层双 ST 签发原语（仅测试构造票据用，非安全路径）。"""
         return self.st.issue_dual_ticket(principal, service, st_kind, perm,
                                          caddr=caddr, times=times, ttl=ttl)
+
+    def issue_dual_access(self, agent_did: str, user_did: str,
+                          session_credential: dict, service: str,
+                          netperm: dict, claims: dict, caddr: str = "",
+                          ttl: float = TICKET_TTL) -> Optional[dict]:
+        """原子签发 ST_net + ST_data（安全路径）。
+
+        签发前检查：
+          - agent 已登记
+          - agent 绑定用户 == user_did
+          - 方向二会话凭证有效（信任锚 KDC 验签 + relay 签名 + 未过期）
+          - 会话凭证的 device_did/user_did 与本次接入一致
+        两张票共同绑定 pair_id + user_did + agent_did + parent_ticket_id。
+        """
+        if agent_did not in self.devices:
+            return None
+        owner = self.binding.owner_of(agent_did)
+        if owner is None or owner != user_did:
+            return None
+        if not isinstance(session_credential, dict):
+            return None
+        if not verify_session_credential(self.sm9, session_credential,
+                                         trusted_kdc_did=self.kdc_did,
+                                         now_fn=self.st.now):
+            return None
+        if session_credential.get("device_did") != agent_did:
+            return None
+        if session_credential.get("user_did") != user_did:
+            return None
+        pair_id = rand_bytes(16, "pair_id").hex()
+        parent_ticket_id = session_credential.get("parent_ticket_id", "")
+        st_net = self.st.issue_dual_ticket(
+            agent_did, service, "net", netperm, caddr=caddr, ttl=ttl,
+            pair_id=pair_id, user_did=user_did, parent_ticket_id=parent_ticket_id)
+        st_data = self.st.issue_dual_ticket(
+            agent_did, service, "data", {"claims": claims}, caddr=caddr, ttl=ttl,
+            pair_id=pair_id, user_did=user_did, parent_ticket_id=parent_ticket_id)
+        return {"st_net": st_net, "st_data": st_data}
 
     def delegate_proxy(self, relay_did: str, scope: Optional[list] = None,
                        exp: Optional[float] = None) -> dict:

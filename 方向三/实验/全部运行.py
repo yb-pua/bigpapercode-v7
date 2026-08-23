@@ -12,8 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV = "/home/yfish/trae/code/v6-大论文版/.venv/bin/python"
-STEPS = ["expC0_agent_id.py", "expC1_scenarios.py", "expC3_attacks.py",
-         "expC2_performance.py", "expC4_security_matrix.py"]
+STEPS = ["实验零身份锚定/实验零.py", "实验一场景审计/实验一.py", "实验三攻击消融/实验三.py",
+         "实验二性能/实验二.py", "实验四安全矩阵/实验四.py"]
 
 
 def main():
@@ -21,10 +21,10 @@ def main():
     conc1000 = "--conc1000" in sys.argv
     t0 = time.perf_counter()
     for name in STEPS:
-        cmd = [VENV, "-B", str(ROOT / "experiments" / name)]
+        cmd = [VENV, "-B", str(ROOT / name)]
         if quick:
             cmd.append("--quick")
-        if conc1000 and name == "expC2_performance.py":
+        if conc1000 and name == "实验二性能/实验二.py":
             cmd.append("--conc1000")
         print(f"\n=== {name} ===")
         subprocess.run(cmd, check=True)
