@@ -1,0 +1,42 @@
+  env_types=['docker', 'linux', 'windows', 'vmware'] n_per_type=50 total_dids=200 collisions=0
+  clone_same_did_ok=True (去重语义由 KDC 绑定表保证)
+  A_data_query                 passed=1 latency=1442.96ms
+  B_collab_chain               passed=1 latency=1435.47ms
+  C_cross_domain               passed=1 latency=980.01ms
+  C_expired_st_net_rejected    passed=1 latency=0.0ms
+  audit: calls=171 chain_rate=1.0 missing_rate=0.0058
+  ours: normal=0.00 tampered=1.00 priv_esc=1.00 replay=1.00
+  oauth: normal=0.00 tampered=0.00 priv_esc=0.00 replay=0.00
+  noauth: normal=0.00 tampered=0.00 priv_esc=0.00 replay=0.00
+  attack tampered: ours=1.00 oauth=0.00 noauth=0.00
+  attack priv_esc: ours=1.00 oauth=0.00 noauth=0.00
+  attack replay: ours=1.00 oauth=0.00 noauth=0.00
+  attack forged_st: ours=1.00 oauth=0.00 noauth=0.00
+  attack did_spoof: ours=1.00 oauth=0.00 noauth=0.00
+  attack confusion: ours=1.00 oauth=0.00 noauth=0.00
+  attack unregistered_agent: ours=1.00 oauth=0.00 noauth=0.00
+  attack invalid_parent_session: ours=1.00 oauth=0.00 noauth=0.00
+  attack dual_st_mix: ours=1.00 oauth=0.00 noauth=0.00
+  attack user_agent_mismatch: ours=1.00 oauth=0.00 noauth=0.00
+  ablation full: normal_pass=1.00 user_sig_escape=0.00 st_claims_escape=0.00
+  ablation no_user_signature_verify: normal_pass=1.00 user_sig_escape=1.00 st_claims_escape=0.00
+  ablation no_st_data_verify: normal_pass=1.00 user_sig_escape=0.00 st_claims_escape=1.00
+  ours c=100: p50=87076.3ms p90=90178.5ms p99=91257.3ms qps=1 msg=2908B
+  ours c=500: p50=430860.9ms p90=443551.1ms p99=447422.0ms qps=1 msg=2911B
+  oauth c=100: p50=0.00ms p90=0.00ms p99=0.00ms qps=130245 msg=115B
+  oauth c=500: p50=0.00ms p90=0.00ms p99=0.00ms qps=39199 msg=115B
+  expC4_security_matrix.csv written: 28 rows (7 dims x 4 schemes)
+
+=== 实验零身份锚定/实验零.py ===
+
+=== 实验一场景审计/实验一.py ===
+
+=== 实验三攻击消融/实验三.py ===
+
+=== 实验二性能/实验二.py ===
+
+=== 实验四安全矩阵/实验四.py ===
+
+ALL DONE in 4338s
+EXIT_CODE=0
+END_TIME=2026-08-23T10:42:25+0800

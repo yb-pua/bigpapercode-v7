@@ -49,11 +49,12 @@ ST_net（组网）+ ST_data（数据权限）双票据与"先设备后用户"的
 
 ```
 Agent 环境标识(env_type+seed → env_id) → 设备 DID ←绑定→ 用户生物 DID
-→ KDC 双 ST：ST_net(组网 NetPerm) + ST_data(claims={tools,actions})
-→ 双签名链：σ_agent=Sign(设备sk,SM3(Cmd‖ts‖req_id))
+→ 上游：方向二 P2P Session Credential（模拟交接，验证可信 KDC/用户/设备/权限/有效期）
+→ KDC 原子签发双 ST：ST_net + ST_data（共同绑定 pair_id/user_did/agent_did/parent_ticket_id）
+→ 双签名链：σ_agent=Sign(设备sk,SM3(Cmd‖ts‖req_id‖双票ID‖双DID))
             σ_user=Sign(生物sk,SM3(Cmd‖σ_agent‖ctx))
 → MCP JSON-RPC tools/call + 头 X-ST-Ticket / X-ST-Ticket-Net
-→ 服务端四步验证：①双ST(验签+单次防重放) ②签名链 ③DID一致性 ④权限匹配
+→ 服务端验证：①双ST(验签+单次防重放) ②跨字段绑定(pair/user/agent/parent) ③签名链 ④权限匹配
 → 网关：ST_net 跨域准入，载荷不解密；审计 ticket_id 全链贯通
 ```
 
@@ -76,7 +77,7 @@ Agent 环境标识(env_type+seed → env_id) → 设备 DID ←绑定→ 用户�
 | 对比项 | 基线/论文 | 本文数据（results/expC*） |
 |---|---|---|
 | 调用级安全矩阵（7 维） | 标准 Kerberos / 国密 Kerberos / OAuth 2.1 | expC4_security_matrix.csv：本文 7 维全 1；OAuth 抗重放/粒度/绑定/审计=0 |
-| 攻击拦截率 | OAuth 2.1 / 无管控 | 六类攻击（tampered/priv_esc/replay/forged_st/did_spoof/confusion）本文 100% 拦截，OAuth/noauth 0%（C3 attack_matrix） |
+| 攻击拦截率 | OAuth 2.1 / 无管控 | 十类攻击（tampered/priv_esc/replay/forged_st/did_spoof/confusion/unregistered_agent/invalid_parent_session/dual_st_mix/user_agent_mismatch）本文 100% 拦截，OAuth/noauth 0%（C3 attack_matrix） |
 | 权限粒度 | OAuth server 级 scope | claims tool+action 级（越权指令本文全拦、OAuth 全放行） |
 | 性能开销 | OAuth 直连（纯查表） | 本文每调用含双 ST+双签名链（报文 ~2.3KB），p50/p90/p99/QPS 对比（C2） |
 | 审计归因 | OAuth 授权时审计 | ticket_id 全链贯通率 1.0（C1 audit） |
@@ -89,14 +90,13 @@ Agent 环境标识(env_type+seed → env_id) → 设备 DID ←绑定→ 用户�
   绑定表去重识别）。
 - **C1**：三场景（A 数据查询 / B 协作链 / C 网关跨域）全部通过；审计链
   ticket_id 贯通率 1.0，缺失率 0.6%（拒绝类无票，如实标注）。
-- **C2**：并发 100/500 本文 vs OAuth：时延分位、QPS、报文字节（数值待
-  联调回填，见已知限制）。
+- **C2**：并发 100/500 本文 vs OAuth（Python 本地线程/loopback 微基准，非生产/公网性能）：本文 p50≈87s/431s、qps≈0.68/0.69、报文≈2.9KB；OAuth qps≈13万/3.9万、报文 115B（cache_auth_state 纯模拟基线）。
 - **C3**：500 条指令流（60/16/16/8）本文正常 100% 通过、篡改/越权/重放
-  100% 拦截；六类攻击矩阵本文全 1.00、OAuth/noauth 全 0.00（OAuth
-  混淆缺陷如实复现）；消融 full 正常 0% 拦+攻击 100% 拦，去任一必要层
-  正常调用 100% 失败。
+  100% 拦截；十类攻击矩阵本文全 1.00、OAuth/noauth 全 0.00（OAuth
+  混淆缺陷如实复现）；消融 full 正常 100% 通过+攻击 0% 逃逸，
+  去用户签名层 / 去 ST_data 层对应攻击 100% 逃逸。
 - **C4**：7 维 × 4 方案安全矩阵（判定依据见 CSV basis 列）。
-- 单测 `pytest tests/` 21/21 通过。
+- 单测 `pytest tests/` 25/25 通过。
 
 ## 七、已知限制（论文引用时标注）
 
@@ -109,6 +109,8 @@ Agent 环境标识(env_type+seed → env_id) → 设备 DID ←绑定→ 用户�
   报文 ts 已统一（避免跨秒链验失败）。
 - ST 单次使用 → 每请求必须重新签发双 ST（~150ms×2，C1/C3 已按此构造）。
 - SM9 签名 h 补零修复（同方向二），1500 次自验签 0 失败。
+- 上游 P2P Session Credential 交接为实验模拟（simulated），不执行真实 NAT 打洞 / P2P 准入 / 网络通信。
+- ours 未实现在线 CRL；MCP 为本地进程内模拟调用，非远程生产 MCP 部署。
 
 ## 八、复现
 

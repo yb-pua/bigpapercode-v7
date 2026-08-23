@@ -1,0 +1,8 @@
+config,attack,normal_pass_rate,attack_block_rate,attack_escape_rate,n
+full,tamper_user_sig,1.00000000,1.00000000,0.00000000,20
+full,tamper_st_claims,1.00000000,1.00000000,0.00000000,20
+no_user_signature_verify,tamper_user_sig,1.00000000,0.00000000,1.00000000,20
+no_user_signature_verify,tamper_st_claims,1.00000000,1.00000000,0.00000000,20
+no_st_data_verify,tamper_user_sig,1.00000000,1.00000000,0.00000000,20
+no_st_data_verify,tamper_st_claims,1.00000000,0.00000000,1.00000000,20
+#meta {"seed": 20260817, "mode": "formal", "n_cmds": 500, "n_attack": 20, "ratios": {"normal": 0.6, "tampered": 0.16, "priv_esc": 0.16, "replay": 0.08}}

@@ -1,0 +1,3 @@
+calls,chain_complete_rate,audit_missing_rate
+171,1.00000000,0.00580000
+#meta {"seed": 20260817, "mode": "formal", "n_a": 30, "n_b": 10, "n_c": 10}

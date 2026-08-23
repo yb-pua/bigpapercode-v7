@@ -1,0 +1,18 @@
+{
+  "git_commit": "2a3bb7bad8aa6af8ecc6f8d5f5ed0dd2f66b334f",
+  "dirty_worktree": true,
+  "timestamp": "2026-08-23T10:42:25+0800",
+  "python": "3.14.6",
+  "platform": "Linux-7.1.8-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "mode": "formal",
+  "seed": 20260817,
+  "measurement_mode": "evidence_matrix",
+  "parameters": {
+    "dimensions": 7,
+    "schemes": 4
+  },
+  "simulated_components": [
+    "Evidence-derived static security matrix",
+    "OAuth bearer-token baseline"
+  ]
+}

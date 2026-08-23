@@ -1,0 +1,6 @@
+scenario,steps,passed,reject_reason,latency_ms
+A_data_query,4,1,,1442.96000000
+B_collab_chain,8,1,,1435.47000000
+C_cross_domain,2,1,,980.01000000
+C_expired_st_net_rejected,1,1,st_net expired,0.00000000
+#meta {"seed": 20260817, "mode": "formal", "n_a": 30, "n_b": 10, "n_c": 10}
