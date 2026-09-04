@@ -1,0 +1,10 @@
+attack,attack_succeeded,detail,status
+bio01_genuine_bio_sign,0,signature_ok,success
+bio02_impostor_bio_sign,0,bio_auth_failed,blocked
+bio03_repeated_failure_lockout,0,blocked,blocked
+bio04_sign_without_bio_denied,0,absent,blocked
+bio05_private_key_export_denied,0,absent,blocked
+bio06_helper_export_denied,0,absent,blocked
+bio07_normal_db_leak,0,clean,blocked
+bio08_replay_nonce_rejected,0,replay_detected,blocked
+bio09_audit_secret_scan,0,clean,blocked

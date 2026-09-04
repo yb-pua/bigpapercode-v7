@@ -1,0 +1,4 @@
+group,metric,value,detail
+G1,bio_gated_sign,0,普通环境签名无生物门控
+G2,lockout_enabled,0,不限次
+G3,bio_gated_sign,1,TEE 生物门控签名

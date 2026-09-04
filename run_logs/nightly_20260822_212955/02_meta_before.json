@@ -1,0 +1,1 @@
+{"backend": "insightface", "model": "buffalo_l", "n_images": 528, "n_extracted": 528, "seconds": 240.3759171962738, "status": "ok", "generated_at": "2026-08-22 06:27:04", "full_lfw": false, "cache_dir": "cache_formal_v2"}

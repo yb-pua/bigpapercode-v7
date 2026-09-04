@@ -1,0 +1,5 @@
+scenario,seq,event,ok,error
+lockout,1,impostor_failure,0,bio_auth_failed
+lockout,2,impostor_failure,0,bio_auth_failed
+lockout,3,impostor_failure,0,bio_auth_failed
+lockout,4,blocked_after_3_failures,0,blocked

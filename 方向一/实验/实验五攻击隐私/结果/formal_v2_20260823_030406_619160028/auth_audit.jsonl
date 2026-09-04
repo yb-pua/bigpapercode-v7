@@ -1,0 +1,4 @@
+{"ts": 1787425447.2163546, "ticket_id": null, "action": "register", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787425447.7351968, "ticket_id": null, "action": "register", "result": "success", "principal": "didsm9:lockout:d0a1f1ae84460bb9576e7745fc56da94fe55db34e11341ca27582d14d4fb49e5"}
+{"ts": 1787425448.0614874, "ticket_id": "d35d680265734df10872dd724454dd6d", "action": "as_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787425448.0620086, "ticket_id": null, "action": "as_req", "result": "rejected_replay", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}

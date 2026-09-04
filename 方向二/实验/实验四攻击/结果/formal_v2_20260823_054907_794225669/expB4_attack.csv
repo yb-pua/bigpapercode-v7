@@ -1,0 +1,16 @@
+attack_type,attempts,blocked,block_rate,expected,actual,reject_stage,error,pass
+replay_st,5,5,1.00000000,block,block,st,replay_detected,1
+forged_auth,5,5,1.00000000,block,block,authorize,auth_invalid,1
+forged_st,5,5,1.00000000,block,block,st,signature_invalid,1
+tampered_st,5,5,1.00000000,block,block,st,signature_invalid,1
+did_spoofing,5,5,1.00000000,block,block,challenge,challenge_failed,1
+expired_st,5,5,1.00000000,block,block,st,signature_invalid,1
+auth_st_device_mix_match,5,5,1.00000000,block,block,binding,device_mismatch,1
+netperm_escalation,5,5,1.00000000,block,block,binding,netperm_escalation,1
+finish_request_tamper,5,5,1.00000000,block,block,challenge,challenge_failed,1
+challenge_replay,5,5,1.00000000,block,block,challenge,challenge_replay,1
+malicious_relay_plaintext,5,0,0.00000000,block,pass,,,0
+relay_in_scope_netperm_escalation,5,5,1.00000000,block,block,verify,netperm_escalation,1
+tunnel_frame_replay,5,5,1.00000000,block,block,tunnel,frame_replay,1
+proxy_forge_out_of_scope,5,5,1.00000000,block,block,proxy,authorization_out_of_scope,1
+#meta {"seed": 20260817, "mode": "quick", "n_attack": 5}

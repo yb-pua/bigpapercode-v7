@@ -1,0 +1,8 @@
+metric,value
+persons,30
+flow_ok_ratio,0.86666667
+lockout_after_3_failures,1
+attestation_type,simulated-hmac
+auth_audit_entries,109
+secret_in_audit,0
+as_registrations_clean,1

@@ -1,0 +1,6 @@
+总计 1136
+drwxr-xr-x. 1 yfish yfish     126  8月22日 06:27 .
+drwxr-xr-x. 1 yfish yfish     186  8月22日 06:23 ..
+-rw-r--r--. 1 yfish yfish 1081472  8月22日 06:27 embs_insightface.npy
+-rw-r--r--. 1 yfish yfish   70554  8月22日 06:27 index_insightface.json
+-rw-r--r--. 1 yfish yfish     221  8月22日 06:27 meta_insightface.json

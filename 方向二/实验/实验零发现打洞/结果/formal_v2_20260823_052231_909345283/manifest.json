@@ -1,0 +1,12 @@
+{
+  "git_commit": "d93364c5e8a9539be24f2714e63fd157dd6bae67",
+  "dirty_worktree": true,
+  "mode": "quick",
+  "seed": 20260817,
+  "n_pre": 6,
+  "n_repeat": 6,
+  "simulated_components": [
+    "VirtualNAT/punch (no real STUN/TURN/socket)",
+    "latency_direct_ms/latency_relay_ms (assumed_simulated loopback)"
+  ]
+}

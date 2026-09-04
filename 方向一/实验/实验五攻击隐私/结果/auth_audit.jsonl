@@ -20,3 +20,25 @@
 {"ts": 1787107207.813905, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_auth", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34", "error": "auth_decrypt"}
 {"ts": 1787107207.830444, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_tgt_expired", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
 {"ts": 1787107207.9312418, "ticket_id": null, "action": "as_req", "result": "rejected_ts", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787351635.0936217, "ticket_id": null, "action": "register", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787351635.437747, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "as_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787351635.65547, "ticket_id": null, "action": "as_req", "result": "rejected_replay", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787351635.6608927, "ticket_id": "5009f9834f33ba124cac47c2794970cc", "action": "tgs_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787351635.6632864, "ticket_id": null, "action": "ap_req", "result": "rejected_st", "principal": "-", "error": "st_decrypt"}
+{"ts": 1787351635.6645267, "ticket_id": null, "action": "tgs_req", "result": "rejected_tgt", "principal": "-", "error": "tgt_decrypt"}
+{"ts": 1787351636.2104168, "ticket_id": null, "action": "register", "result": "rejected_sig", "principal": "didsm9:intruder:32f371a2478d8d0fc5db1e4f1719067a55fb6a1229896c6cb7a3b431857e0915"}
+{"ts": 1787351636.3743408, "ticket_id": null, "action": "as_req", "result": "rejected_unknown", "principal": "didsm9:ghost:6874e0ac5d689b3a18c0401bfbea62a95ecbb2f5a0817f0524d4229c545b34d2"}
+{"ts": 1787351636.3774927, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_auth", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34", "error": "auth_decrypt"}
+{"ts": 1787351636.4000242, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_tgt_expired", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787351636.5264132, "ticket_id": null, "action": "as_req", "result": "rejected_ts", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787413619.4303927, "ticket_id": null, "action": "register", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787413619.6958232, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "as_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787413619.8593628, "ticket_id": null, "action": "as_req", "result": "rejected_replay", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787413619.8633559, "ticket_id": "5009f9834f33ba124cac47c2794970cc", "action": "tgs_req", "result": "success", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787413619.8652132, "ticket_id": null, "action": "ap_req", "result": "rejected_st", "principal": "-", "error": "st_decrypt"}
+{"ts": 1787413619.8661306, "ticket_id": null, "action": "tgs_req", "result": "rejected_tgt", "principal": "-", "error": "tgt_decrypt"}
+{"ts": 1787413620.2847102, "ticket_id": null, "action": "register", "result": "rejected_sig", "principal": "didsm9:intruder:32f371a2478d8d0fc5db1e4f1719067a55fb6a1229896c6cb7a3b431857e0915"}
+{"ts": 1787413620.4065511, "ticket_id": null, "action": "as_req", "result": "rejected_unknown", "principal": "didsm9:ghost:6874e0ac5d689b3a18c0401bfbea62a95ecbb2f5a0817f0524d4229c545b34d2"}
+{"ts": 1787413620.40882, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_auth", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34", "error": "auth_decrypt"}
+{"ts": 1787413620.425594, "ticket_id": "ee0d7c226213502e1fe861cdc97cca4d", "action": "tgs_req", "result": "rejected_tgt_expired", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}
+{"ts": 1787413620.5252368, "ticket_id": null, "action": "as_req", "result": "rejected_ts", "principal": "didsm9:victim:f5cfd20c849eda18f67b2c480b0b38bb8e5c53ea64ac799277aaa814a9cfdb34"}

@@ -1,0 +1,8 @@
+discover_ms,topology_entries,connect_ok
+0.01257800,1,1
+0.00669100,2,1
+0.00429700,3,1
+0.00533800,4,1
+0.00421400,5,1
+0.00395200,6,1
+#meta {"seed": 20260817, "mode": "quick", "n_pre": 6, "n_repeat": 6}

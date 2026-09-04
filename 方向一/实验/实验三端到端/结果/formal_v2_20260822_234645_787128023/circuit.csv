@@ -1,0 +1,13 @@
+scenario,seq,event,failure_count,state,action,ok,injection
+l1_success,0,baseline,0,closed,allow,1,
+l1_success,1,failure,1,closed,retry,,
+l1_success,2,failure,2,closed,retry,,
+l1_success,3,trip,3,blocked,block,,
+l1_success,4,l1_recover,0,closed,allow,1,
+l2_downgrade,0,baseline,0,closed,allow,1,
+l2_downgrade,1,failure,1,closed,retry,,
+l2_downgrade,2,failure,2,closed,retry,,
+l2_downgrade,3,trip,3,blocked,block,,
+l2_downgrade,4,l1_failed,3,blocked,block,0,forced_callback_false
+l2_downgrade,5,l2_reregister,0,closed,allow,1,
+l2_downgrade,6,final_auth,0,closed,allow,1,

@@ -1,0 +1,7 @@
+metric,value
+attacks_total,9
+attacks_blocked,8
+attacks_vulnerable,0
+genuine_bio_sign_ok,1
+attestation_type,simulated-hmac
+audit_secret_scan,0

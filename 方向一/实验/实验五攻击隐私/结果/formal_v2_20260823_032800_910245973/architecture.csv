@@ -1,0 +1,14 @@
+group,attack,victim,candidate_count,permutation,target_position,setup_time_ms,attack_time_ms,requests_sent,biometric_evaluations,blocked_requests,target_identified,false_accept,signature_issued,attempts_per_second
+G0,candidate_scan,Abdullah_Gul,10,0,5,0.10000000,0.10000000,10,10,0,1,0,0,97769.32000000
+G1,candidate_scan,Abdullah_Gul,10,0,5,2.64000000,28.53000000,6,6,0,1,0,1,210.33000000
+G2,candidate_scan,Abdullah_Gul,10,0,5,169.77000000,145.84000000,6,6,0,1,0,1,41.14000000
+G3,candidate_scan,Abdullah_Gul,10,0,5,175.12000000,17.36000000,4,3,1,0,0,0,230.36000000
+G0,candidate_scan,Abdullah_Gul,50,0,33,0.08000000,0.26000000,50,50,0,1,0,0,189444.63000000
+G1,candidate_scan,Abdullah_Gul,50,0,33,2.06000000,154.18000000,34,34,0,1,0,1,220.53000000
+G2,candidate_scan,Abdullah_Gul,50,0,33,167.02000000,284.84000000,34,34,0,1,0,1,119.36000000
+G3,candidate_scan,Abdullah_Gul,50,0,33,165.50000000,16.66000000,4,3,1,0,0,0,240.09000000
+G0,candidate_scan,Abdullah_Gul,100,0,45,0.08000000,0.52000000,100,100,0,1,0,0,192841.56000000
+G1,candidate_scan,Abdullah_Gul,100,0,45,2.05000000,210.88000000,46,46,0,1,0,1,218.14000000
+G2,candidate_scan,Abdullah_Gul,100,0,45,164.21000000,346.25000000,46,46,0,1,0,1,132.85000000
+G3,candidate_scan,Abdullah_Gul,100,0,45,171.72000000,17.41000000,4,3,1,0,0,0,229.78000000
+G1,direct_sign_bypass,,0,0,-1,0.00000000,0.00000000,0,0,0,0,0,1,0.00000000

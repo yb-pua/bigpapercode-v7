@@ -1,0 +1,5 @@
+group,attack,vulnerable,detail
+G0,database_storage_exposure,1,key_hash_in_db
+G1,candidate_face_verification,1,sign_without_bio_gate
+G2,unlimited_bruteforce,1,no_lockout
+G3,sign_bypass,0,no_bypass

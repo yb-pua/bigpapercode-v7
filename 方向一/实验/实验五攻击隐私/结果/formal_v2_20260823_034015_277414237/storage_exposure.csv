@@ -1,0 +1,5 @@
+group,embedding_exposed,sigma_exposed,key_hash_exposed,offline_verifier_available,sensitive_bytes_exposed
+G0,1,0,0,1,2048
+G1,0,1,1,1,351
+G2,0,0,0,0,0
+G3,0,0,0,0,0

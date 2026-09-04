@@ -1,0 +1,22 @@
+{
+  "git_commit": "89437ca94f45f78e2162c2c02d55537e8fd309f4",
+  "dirty_worktree": true,
+  "timestamp": "2026-08-23T07:04:13+0800",
+  "python": "3.14.6",
+  "platform": "Linux-7.1.8-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "mode": "quick",
+  "seed": 20260817,
+  "measurement_mode": "python_thread_loopback_microbenchmark",
+  "parameters": {
+    "n_req": 50,
+    "concurrency": [
+      10,
+      50
+    ]
+  },
+  "simulated_components": [
+    "MCP JSON-RPC tools/call",
+    "Direction-2 session credential handoff",
+    "OAuth bearer-token baseline"
+  ]
+}

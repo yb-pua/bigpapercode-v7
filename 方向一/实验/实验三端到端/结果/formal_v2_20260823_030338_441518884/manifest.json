@@ -1,0 +1,11 @@
+{
+  "git_commit": "1973be58cc6ac61ee98c7350498f4e2df4e4c38a",
+  "seed": 20260817,
+  "cache_path": "/home/yfish/trae/code/V7大论文逻辑版-预上线/方向一/cache_formal_v2",
+  "cache_sha256": "8dfc27ab62012e835d7643d882662eef4f8346331f2cdd57b0879dcf082e69dc",
+  "split_policy": "enroll=5, probe=第6张独立, bio_tee=simulated-hmac",
+  "model": "insightface/buffalo_l",
+  "implementation": "reedsolo",
+  "start_time": "2026-08-23 03:04:06",
+  "environment": "LFW funneled"
+}

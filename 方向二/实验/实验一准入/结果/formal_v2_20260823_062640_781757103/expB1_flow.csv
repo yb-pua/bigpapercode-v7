@@ -1,0 +1,6 @@
+group,n_runs,legal_admission_rate,admission_p50_ms,admission_p95_ms,request_bytes,credential_bytes
+G0,5,1.00000000,0.00205200,0.00271900,27,0
+G1,5,1.00000000,178.65229300,186.26671000,878,0
+G2,5,1.00000000,440.00057900,461.53439860,987,0
+G3,5,1.00000000,888.40106101,895.75486740,1715,1456
+#meta {"seed": 20260817, "mode": "quick", "n_runs": 5, "n_attack": 5}

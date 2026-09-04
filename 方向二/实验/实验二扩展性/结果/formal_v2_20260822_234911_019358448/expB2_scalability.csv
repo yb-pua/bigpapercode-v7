@@ -1,0 +1,4 @@
+N,scheme,admit_p50_ms,admit_p90_ms,payload_throughput_mbps,wire_throughput_mbps,e2e_latency_ms,loss_rate,relay_cpu_pct,relay_mem_mb,measurement_mode,relay_resource_isolation
+10,st_ticket_sm9,1205.74914300,1273.17752910,0.34328000,0.35799200,154.58733700,0.00000000,nan,nan,in_memory_microbenchmark,0
+10,openvpn,114.25655400,124.01314440,-1.00000000,-1.00000000,-1.00000000,-1.00000000,nan,nan,in_memory_microbenchmark,0
+#meta {"seed": 20260817, "openvpn_dataplane": "simulated"}

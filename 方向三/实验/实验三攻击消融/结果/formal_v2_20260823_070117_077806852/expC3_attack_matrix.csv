@@ -1,0 +1,20 @@
+attack_type,scheme,attempts,blocked,block_rate
+tampered,ours,5,5,1.00000000
+tampered,oauth,5,0,0.00000000
+tampered,noauth,5,0,0.00000000
+priv_esc,ours,5,5,1.00000000
+priv_esc,oauth,5,0,0.00000000
+priv_esc,noauth,5,0,0.00000000
+replay,ours,5,5,1.00000000
+replay,oauth,5,0,0.00000000
+replay,noauth,5,0,0.00000000
+forged_st,ours,5,5,1.00000000
+forged_st,oauth,5,0,0.00000000
+forged_st,noauth,5,0,0.00000000
+did_spoof,ours,5,5,1.00000000
+did_spoof,oauth,5,0,0.00000000
+did_spoof,noauth,5,0,0.00000000
+confusion,ours,5,5,1.00000000
+confusion,oauth,5,0,0.00000000
+confusion,noauth,5,0,0.00000000
+#meta {"seed": 20260817, "mode": "quick", "n_cmds": 50, "n_attack": 5, "ratios": {"normal": 0.6, "tampered": 0.16, "priv_esc": 0.16, "replay": 0.08}}
